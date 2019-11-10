@@ -1,0 +1,381 @@
+<!doctype html>
+<html amp lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>
+Terraform Environment+Application Design Pattern: Bonus Patterns - apparently.me.uk
+</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    
+<link rel="canonical" href="/terraform-environment-application-pattern/bonus-patterns.html">
+<link rel="up" href="/terraform-environment-application-pattern/">
+
+<meta property="og:title" content="Terraform Environment+Application Design Pattern: Bonus Patterns">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="apparently.me.uk">
+<link rel="feed" type="application/rss+xml" href="/articles.rss">
+<script type="application/ld+json">
+  {
+  "@context": "http://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Terraform Environment+Application Design Pattern: Bonus Patterns",
+  "datePublished": "2017-02-18"
+  }
+</script>
+
+    <meta property="fb:admins" content="509714340" />
+    <meta name="google-site-verification" content="ZzodgjzpqgeNLVSHnRTeHSSoxs9hpDrUJ8BmT1WNvEk" />
+    <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lobster|Raleway:400,600|Inconsolata">
+    <style amp-custom>/* https://www.google.com/fonts#UsePlace:use/Collection:Lobster|Raleway:400,600|Inconsolata */
+@media screen {
+  html {
+    font-size: 12px; } }
+
+@media print {
+  html {
+    font-size: 12px; } }
+
+@media only screen and (min-width: 665px) {
+  html {
+    font-size: 15px; } }
+
+@media only screen and (min-width: 940px) {
+  html {
+    font-size: 18px; } }
+
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  line-height: 1.61803rem;
+  font-family: Raleway, sans-serif;
+  font-weight: 400;
+  background: #f4f6f8;
+  color: #333; }
+  @media print {
+    html {
+      background: #ffffff;
+      color: #000000; } }
+html, body {
+  margin: 0;
+  padding: 0; }
+
+body {
+  padding: 0 1.61803rem;
+  background: transparent; }
+
+a {
+  text-decoration: none;
+  color: #960115;
+  cursor: pointer; }
+
+#everything {
+  max-width: 66ch;
+  margin: 0 auto; }
+
+header {
+  height: 6.47214rem;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  cursor: default; }
+  header h1 {
+    font-family: "Lobster", sans-serif;
+    font-weight: 400;
+    line-height: 4.8541rem;
+    font-size: 3rem;
+    margin: 0;
+    margin-top: 0.5rem;
+    float: left; }
+  header p {
+    margin: 0;
+    margin-top: 2.42705rem;
+    padding-top: 0.15rem;
+    float: right;
+    font-size: 2em;
+    margin-left: 1.61803rem; }
+  @media print {
+    header {
+      display: none; } }
+#content {
+  margin-top: -0.3rem; }
+  #content.ng-enter {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 0; }
+    #content.ng-enter.ng-enter-active {
+      opacity: 1; }
+  #content.ng-leave {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 1; }
+    #content.ng-leave.ng-leave-active {
+      opacity: 0; }
+  #content p, #content h2, #content h3, #content li, #content ul, #content ol, #content dl, #content dt {
+    margin: 0;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: inherit; }
+  #content .article-masthead h2 {
+    font-size: 3rem;
+    line-height: 4.8541rem;
+    text-align: center;
+    margin: 0 1.61803rem;
+    margin-top: 1.61803rem;
+    font-weight: 600; }
+    @media only screen and (max-width: 330px) {
+      #content .article-masthead h2 {
+        font-size: 2rem;
+        line-height: 3.23607rem; } }
+    #content .article-masthead h2 a {
+      color: inherit; }
+      #content .article-masthead h2 a:hover {
+        text-decoration: none;
+        color: #960115; }
+  #content .article-masthead time, #content .article-masthead .article-subhed {
+    text-align: center;
+    margin-bottom: 3.33607rem;
+    display: block;
+    margin-top: 0.80902rem; }
+  @media print {
+    #content .article-masthead {
+      margin-top: 3.23607rem;
+      margin-bottom: 3.23607rem; } }
+  #content .article-part-nav {
+    margin-top: 3.33607rem;
+    margin-bottom: 3.33607rem; }
+  #content h3 {
+    font-size: 2rem;
+    line-height: 3.23607rem;
+    margin-top: 3.23607rem;
+    margin-bottom: 1.41803rem;
+    padding-top: 0.2rem;
+    font-weight: 600;
+    page-break-after: avoid; }
+  #content p {
+    font-size: 1rem;
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    text-align: justify;
+    widows: 3;
+    orphans: 3; }
+  #content li {
+    margin-left: 1.61803rem; }
+  #content ul, #content ol {
+    margin-bottom: 1.61803rem; }
+  #content code, #content tt, #content pre, #content kbd {
+    font-family: Inconsolata, monospace;
+    font-weight: 400;
+    line-height: 1.61803rem; }
+  #content code, #content tt, #content kbd {
+    line-height: 0; }
+  #content .code, #content .terminal {
+    padding: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    background: #E9EBED;
+    overflow-y: auto;
+    widows: 5;
+    orphans: 5; }
+    @media print {
+      #content .code, #content .terminal {
+        padding: 0;
+        margin-top: 0;
+        margin-bottom: 1.61803rem;
+        margin-left: 0;
+        margin-right: 0;
+        background: inherit;
+        color: inherit;
+        page-break-before: avoid; } }
+    #content .code .comment, #content .terminal .comment {
+      color: #7f7f7f; }
+      @media print {
+        #content .code .comment, #content .terminal .comment {
+          color: #333333; } }
+    #content .code .keyword, #content .terminal .keyword {
+      color: #960115; }
+    #content .code .string, #content .terminal .string {
+      color: #CF001C; }
+    #content .code .name, #content .terminal .name {
+      color: #445588; }
+  #content .terminal {
+    background: #333333;
+    color: #E9EBED; }
+    @media print {
+      #content .terminal {
+        color: inherit;
+        background: inherit; } }
+  #content aside {
+    padding-top: calc(1.61803rem - 1px);
+    padding-left: 1.61803rem;
+    padding-right: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: calc(1.61803rem - 1px);
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    border-bottom: 1px dashed #333333;
+    border-top: 1px dashed #333333; }
+    #content aside.note > :first-child::before {
+      content: "Note: ";
+      font-weight: bold; }
+  #content strong, #content b {
+    font-weight: 600; }
+  #content ol.parts {
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem; }
+  #content ol.parts li {
+    list-style: none;
+    margin: 0;
+    padding: 0; }
+    #content ol.parts li.current {
+      font-weight: bold; }
+  #content .card {
+    margin-bottom: 1.09994rem; }
+    #content .card .carddate {
+      float: right;
+      padding-top: 0.80902rem; }
+    #content .card .cardtitle {
+      line-height: 2.42705rem;
+      font-size: 1.5rem;
+      padding-top: 0.24271rem; }
+    #content .card .cardsummary {
+      margin-top: -0.24271rem; }
+</style>
+    <script async src="https://cdn.ampproject.org/v0.js"></script>
+    <script async custom-element="amp-analytics" src="https://cdn.ampproject.org/v0/amp-analytics-0.1.js"></script>
+</head>
+<body>
+
+<div id="everything">
+
+  <header>
+    <div id="titleblurb">
+    <h1><a href="/">apparently.me.uk</a></h1>
+    <p>By <a href="http://martin.atkins.me.uk/" rel="me author">Martin Atkins</a></p>
+    </div>
+  </header>
+
+  <section id="content">
+
+    
+<article class="full h-entry" itemscope itemtype="http://schema.org/Article">
+  <div class="article-masthead">
+    <h2 itemprop="name" class="p-name"><a href="/terraform-environment-application-pattern/">Terraform Environment+Application Design Pattern</a></h2>
+    <div class="article-subhed">Bonus Patterns</div>
+  </div>
+  <div class="article-body e-content" itemprop="articleBody">
+    <p>This is a supplemental part in a series of articles on
+<a href="./">the Terraform E+A pattern</a>. If you've landed here, it's recommended to read
+from the beginning to understand the purpose and context.</p><p>In this extra article we'll discuss some further optional extensions to the
+E+A pattern that may be useful either as more concrete examples of its
+application or to provide additional capabilities.</p><section id="the-environment-domain-pattern"><h3>The Environment Domain Pattern</h3><p>The E+A pattern is built on the concept of an environment as a container where
+applications can be deployed in a way that allows them to discover each other
+and communicate.</p><p>A great, low-ceremony way to allow one system to find another is to publish
+service addresses in DNS. If you're using <a href="https://consul.io/" target="_blank">Hashicorp Consul</a> then you can
+get this largely for free using its built-in DNS server, but even if you're
+not you can use one of the several DNS service providers in Terraform to
+publish information in DNS.</p><p>A good pattern here is to establish a separate DNS zone for each environment.
+These might be subdomains of your application or corporate domain, or something
+entirely internal. For example, we might use the <tt>aws_route53_zone</tt> resource
+to establish a DNS zone for our QA environment:</p><p>We can publish the domain name and <tt>zone_id</tt> of this resource into our
+shared data store along with all of the other shared environment
+infrastructure. Then each application can create its own records (named after
+each codebase name) within that domain. For example, in our store application:</p><p>After being deployed to both of our example environments the application can
+then be found at <tt>store.qa.saymedia.com</tt> and, presumably,
+<tt>store.prod.saymedia.com</tt>.</p><p>Through systematic assignment of environment domain names and of the hostnames
+within each of these zones we can also clean up a wart in the mechanism by
+which applications join the environment. In our earlier examples the
+application configs had a variable <tt>environment_api_addr</tt> which defined the
+address at which a Consul server could be reached in the target environment.
+This means that in order to deploy an application we must first look up the IP
+address of one of the Consul servers. If we publish the Consul server addresses
+in DNS at <tt>consul.${module.environment.domain_name}}</tt> then we can derive
+what we need to know given just the environment's name:</p><pre class='terminal'>terraform plan -var="environment_name=QA"</pre><p>The <tt>join-environment</tt> module can now infer the Consul address as (for
+example) <tt>"consul.${lower(var.environment_name)}.example.com:8500"</tt> and thus
+completely encapsulate all of the details of how the environment resources
+are located given an environment name.</p></section><section id="tag-based-discovery-pattern"><h3>Tag-based Discovery Pattern</h3><p>In the primary examples in this series we used Consul as an example data store
+that can be used to pass information from one Terraform configuration to
+another. Another way to achieve this is to use a tagging system built in to
+the target system to use the resources themselves as the data store, via
+Terraform data sources.</p><p>At present the AWS provider has the most comprehensive support for this both
+due to AWS's consistent support of tags across most of its services and due
+to the growing set of Terraform data sources that can retrieve resources using
+these tags.</p><p>For example, with appropriate tagging on the network resources created within
+the environment configurations, our <tt>join-environment</tt> module can find
+the VPC id without the need for a secondary data store:</p><p>This pattern is not universally applicable at present due to some limitations
+of the available data sources. In particular there is not a general mechanism
+for retrieving multiple resources that match a given set of filters, so we
+can't currently use the above pattern to find all of the subnets of a given
+VPC. This will hopefully improve in future versions of Terraform as the
+data source capabilites get stronger.</p><p>There is also the tradeoff here that while this avoids running a separate
+data store it effectively distributes the data widely across the various
+services in use, making it hard to get a holistic view of all of the data and
+make use of it via non-service-specific tools such as <tt>consul-template</tt>.</p><p>As the set of data sources grows across all providers, and as Terraform core
+gets more robust cabilities for data sources that return multiple results,
+this pattern will become more applicable across different backend services.
+However, a general data store such as Consul remains the most
+universally-applicable approach.</p></section>
+  </div>
+  <div class="article-part-nav">
+    <ol class="parts">
+      
+        
+        <li><a href="/terraform-environment-application-pattern/overview.html">Part 1: Overview and Definitions</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/creating-environments.html">Part 2: Creating Environments</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/per-application-configuration.html">Part 3: Per-application Configuration</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/join-environment-module.html">Part 4: The "Join Environment" Module</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/conclusion.html">Part 5: Conclusion</a></li>
+        
+      
+        
+        <li class="current"><a href="/terraform-environment-application-pattern/bonus-patterns.html" rel="self">Part 6: Bonus Patterns</a></li>
+        
+      
+    </ol>
+  </div>
+</article>
+
+
+  </section>
+
+  </div>
+
+</div>
+
+<amp-analytics type="googleanalytics" id="analytics1">
+<script type="application/json">
+{
+  "vars": {
+    "account": "UA-3654925-3"
+  },
+  "triggers": {
+    "trackPageview": {
+      "on": "visible",
+      "request": "pageview"
+    }
+  }
+}
+</script>
+</amp-analytics>
+</body>
+</html>

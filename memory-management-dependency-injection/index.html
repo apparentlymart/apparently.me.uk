@@ -1,0 +1,377 @@
+<!doctype html>
+<html amp lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>
+Memory Management via Dependency Injection - apparently.me.uk
+</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    
+<link rel="canonical" href="/memory-management-dependency-injection/">
+<meta name="description" content="Applying the Dependency Injection pattern for dynamic memory management in embedded systems.">
+
+<meta property="og:title" content="Memory Management via Dependency Injection">
+<meta property="og:type" content="article">
+<meta property="og:description" content="Applying the Dependency Injection pattern for dynamic memory management in embedded systems.">
+<meta property="og:site_name" content="apparently.me.uk">
+<link rel="feed" type="application/rss+xml" href="/articles.rss">
+<script type="application/ld+json">
+  {
+  "@context": "http://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Memory Management via Dependency Injection",
+  "datePublished": "2014-08-10"
+  }
+</script>
+
+    <meta property="fb:admins" content="509714340" />
+    <meta name="google-site-verification" content="ZzodgjzpqgeNLVSHnRTeHSSoxs9hpDrUJ8BmT1WNvEk" />
+    <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lobster|Raleway:400,600|Inconsolata">
+    <style amp-custom>/* https://www.google.com/fonts#UsePlace:use/Collection:Lobster|Raleway:400,600|Inconsolata */
+@media screen {
+  html {
+    font-size: 12px; } }
+
+@media print {
+  html {
+    font-size: 12px; } }
+
+@media only screen and (min-width: 665px) {
+  html {
+    font-size: 15px; } }
+
+@media only screen and (min-width: 940px) {
+  html {
+    font-size: 18px; } }
+
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  line-height: 1.61803rem;
+  font-family: Raleway, sans-serif;
+  font-weight: 400;
+  background: #f4f6f8;
+  color: #333; }
+  @media print {
+    html {
+      background: #ffffff;
+      color: #000000; } }
+html, body {
+  margin: 0;
+  padding: 0; }
+
+body {
+  padding: 0 1.61803rem;
+  background: transparent; }
+
+a {
+  text-decoration: none;
+  color: #960115;
+  cursor: pointer; }
+
+#everything {
+  max-width: 66ch;
+  margin: 0 auto; }
+
+header {
+  height: 6.47214rem;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  cursor: default; }
+  header h1 {
+    font-family: "Lobster", sans-serif;
+    font-weight: 400;
+    line-height: 4.8541rem;
+    font-size: 3rem;
+    margin: 0;
+    margin-top: 0.5rem;
+    float: left; }
+  header p {
+    margin: 0;
+    margin-top: 2.42705rem;
+    padding-top: 0.15rem;
+    float: right;
+    font-size: 2em;
+    margin-left: 1.61803rem; }
+  @media print {
+    header {
+      display: none; } }
+#content {
+  margin-top: -0.3rem; }
+  #content.ng-enter {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 0; }
+    #content.ng-enter.ng-enter-active {
+      opacity: 1; }
+  #content.ng-leave {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 1; }
+    #content.ng-leave.ng-leave-active {
+      opacity: 0; }
+  #content p, #content h2, #content h3, #content li, #content ul, #content ol, #content dl, #content dt {
+    margin: 0;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: inherit; }
+  #content .article-masthead h2 {
+    font-size: 3rem;
+    line-height: 4.8541rem;
+    text-align: center;
+    margin: 0 1.61803rem;
+    margin-top: 1.61803rem;
+    font-weight: 600; }
+    @media only screen and (max-width: 330px) {
+      #content .article-masthead h2 {
+        font-size: 2rem;
+        line-height: 3.23607rem; } }
+    #content .article-masthead h2 a {
+      color: inherit; }
+      #content .article-masthead h2 a:hover {
+        text-decoration: none;
+        color: #960115; }
+  #content .article-masthead time, #content .article-masthead .article-subhed {
+    text-align: center;
+    margin-bottom: 3.33607rem;
+    display: block;
+    margin-top: 0.80902rem; }
+  @media print {
+    #content .article-masthead {
+      margin-top: 3.23607rem;
+      margin-bottom: 3.23607rem; } }
+  #content .article-part-nav {
+    margin-top: 3.33607rem;
+    margin-bottom: 3.33607rem; }
+  #content h3 {
+    font-size: 2rem;
+    line-height: 3.23607rem;
+    margin-top: 3.23607rem;
+    margin-bottom: 1.41803rem;
+    padding-top: 0.2rem;
+    font-weight: 600;
+    page-break-after: avoid; }
+  #content p {
+    font-size: 1rem;
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    text-align: justify;
+    widows: 3;
+    orphans: 3; }
+  #content li {
+    margin-left: 1.61803rem; }
+  #content ul, #content ol {
+    margin-bottom: 1.61803rem; }
+  #content code, #content tt, #content pre, #content kbd {
+    font-family: Inconsolata, monospace;
+    font-weight: 400;
+    line-height: 1.61803rem; }
+  #content code, #content tt, #content kbd {
+    line-height: 0; }
+  #content .code, #content .terminal {
+    padding: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    background: #E9EBED;
+    overflow-y: auto;
+    widows: 5;
+    orphans: 5; }
+    @media print {
+      #content .code, #content .terminal {
+        padding: 0;
+        margin-top: 0;
+        margin-bottom: 1.61803rem;
+        margin-left: 0;
+        margin-right: 0;
+        background: inherit;
+        color: inherit;
+        page-break-before: avoid; } }
+    #content .code .comment, #content .terminal .comment {
+      color: #7f7f7f; }
+      @media print {
+        #content .code .comment, #content .terminal .comment {
+          color: #333333; } }
+    #content .code .keyword, #content .terminal .keyword {
+      color: #960115; }
+    #content .code .string, #content .terminal .string {
+      color: #CF001C; }
+    #content .code .name, #content .terminal .name {
+      color: #445588; }
+  #content .terminal {
+    background: #333333;
+    color: #E9EBED; }
+    @media print {
+      #content .terminal {
+        color: inherit;
+        background: inherit; } }
+  #content aside {
+    padding-top: calc(1.61803rem - 1px);
+    padding-left: 1.61803rem;
+    padding-right: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: calc(1.61803rem - 1px);
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    border-bottom: 1px dashed #333333;
+    border-top: 1px dashed #333333; }
+    #content aside.note > :first-child::before {
+      content: "Note: ";
+      font-weight: bold; }
+  #content strong, #content b {
+    font-weight: 600; }
+  #content ol.parts {
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem; }
+  #content ol.parts li {
+    list-style: none;
+    margin: 0;
+    padding: 0; }
+    #content ol.parts li.current {
+      font-weight: bold; }
+  #content .card {
+    margin-bottom: 1.09994rem; }
+    #content .card .carddate {
+      float: right;
+      padding-top: 0.80902rem; }
+    #content .card .cardtitle {
+      line-height: 2.42705rem;
+      font-size: 1.5rem;
+      padding-top: 0.24271rem; }
+    #content .card .cardsummary {
+      margin-top: -0.24271rem; }
+</style>
+    <script async src="https://cdn.ampproject.org/v0.js"></script>
+    <script async custom-element="amp-analytics" src="https://cdn.ampproject.org/v0/amp-analytics-0.1.js"></script>
+</head>
+<body>
+
+<div id="everything">
+
+  <header>
+    <div id="titleblurb">
+    <h1><a href="/">apparently.me.uk</a></h1>
+    <p>By <a href="http://martin.atkins.me.uk/" rel="me author">Martin Atkins</a></p>
+    </div>
+  </header>
+
+  <section id="content">
+
+    
+<article class="full h-entry" itemscope itemtype="http://schema.org/Article">
+  <div class="article-masthead">
+    <h2 itemprop="name" class="p-name">Memory Management via Dependency Injection</h2>
+    <time datetime="2014-08-10" itemprop="datePublished" class="dt-published">Aug 10 2014</time>
+  </div>
+  <div class="article-body e-content" itemprop="articleBody">
+    <p>Allocation of dynamic memory in memory-constrained environments is known to be
+a hard problem. When memory can be allocated at runtime the following problems
+present themselves in a fully-generalized system:</p><ul><li><p>Provision of sufficient memory: the heap must be at least as big as the
+peak dynamic memory usage of the program, but that is impossible to predict
+for programs that allocate memory based on conditions that do not arise until
+runtime. Heap exhaustion can lead to unexpected program failure at allocation
+time.</p></li><li><p>Fragmentation of memory: a sub-problem of provision of sufficient memory,
+arising when repeated allocation and de-allocation of small memory segments
+cause available memory to be non-contiguous, limiting the maximum possible
+size for a new allocation.</p></li><li><p>Garbage management: whether explicitly or automatically, dynamic memory may
+need to be freed when no longer in use, but the definition of "in use" varies
+from program to program.</p></li><li><p>Performance overhead: dynamic memory allocation and de-allocation can take
+non-deterministic amounts of time depending on the current structure of the
+heap. This is particularly problematic for systems with hard realtime
+performance requirements, but even in non-realtime applications this can
+lead to degenerate performance that arises only after an application has been
+running for a long time.</p></li></ul><p>In modern programming environments the above concerns are often mitigated by
+simply over-provisioning memory to the point that the problems arise only
+in unlikely edge cases. When memory is plentiful, one can often take a "best
+effort" approach to dynamic memory management, and when performance requirements
+are soft one can even resort to automatic memory management strategies like
+a compacting garbage collector, which trade CPU time for improved use of heap
+memory.</p><p>However, embedded systems remain problematic for the following reasons:</p><ul><li><p>Embedded systems are often very memory-constrained compared to today's
+general-purpose computing hardware, with RAM capacities measured in
+kilobytes rather than gigabytes.</p></li><li><p>Embedded systems often have hard or soft realtime constraints placed
+on them, even if just remaining ready to respond to external interrupts
+in a timely fashion, which make "stopping the world" for non-deterministic
+amounts of time undesirable or impossible.</p></li><li><p>Embedded systems can sometimes run for many years without restarting
+and will often have no way to signal to the user that memory is becoming
+tight or has been exhausted. A seemingly-random memory allocation failure
+several months into the runtime of an embedded system could therefore be
+at least inconvenient, and possibly even catastrophic.</p></li></ul><p>For these reasons embedded software designers often choose to avoid dynamic
+memory allocations altogether. Sometimes that is not possible, and so
+designers will adopt various strategies to <em>constrain</em> dynamic memory usage
+so that it is predictable, such as providing a fixed memory pool to each
+subsystem and using fixed-sized allocations within those pools to avoid
+fragmentation.</p><p>The tools available for such memory management schemes in C and C++ are
+limited, since both languages by default expect a single system allocator
+from which all callers obtain dynamic memory. Custom allocators are possible,
+but memory allocation is a cross-cutting concern and so such allocators can
+make it impossible to re-use third-party code that depends on the default
+allocator.</p><p>The remainder of this article describes a hypothetical alternative model
+of memory management which aims to make memory management more explicit
+while allowing code written by different parties to inter-operate. This
+new scheme is best adopted as a core language feature, and is thus planned
+be implemented as the built-in dynamic memory management strategy in my
+work-in-progress embedded systems programming language, Alamatic.</p><section id="theory-of-operation"><h3>Theory of Operation</h3><p>The scheme proposed below treats memory as a dependency to be provided
+via the dependency injection pattern. In this pattern, resources required by
+a subsystem are provided by the caller rather than being acquired directly.
+This article therefore assumes some mechanism of passing dependencies
+into a subsystem but does not specify one.</p><p>The scheme also aims to make ownership of memory explicit, preventing
+dynamic memory allocation from being buried inside leaf functions and
+instead allowing all possible heap usage to be discovered by observing
+the transfer of objects between functions. No automatic garbage
+collection is included, but it is made explicit which subsystem is
+responsible for freeing dynamically-allocated memory.</p><p>This scheme defines three types of dependency that may be provided to a
+subsystem, at different levels of granularity and responsibility:</p><ul><li><p>A plain reference to an object or array of objects of a particular type:
+in this case, memory management is handled entirely by the caller and an
+already-allocated buffer is provided. In C this would just be a pointer,
+and is the simplest case. A subsystem accepting a plain reference may of
+course be provided a reference to a static- or stack-allocated object
+instead; allocation is a separated concern in this case.</p></li><li><p><tt>Allocation</tt> object: represents ownership of an allocated,
+strongly-typed area of memory. This is a generic type and will be
+henceforth referred to via the C++-style notation <tt>Allocation&lt;T&gt;</tt>.
+This object provides the mechanism to free the allocation, and passing
+this object as a function parameter implies transfer of ownership of the
+allocation, and with it the responsibility to free the object.</p></li><li><p><tt>MemoryPool</tt> object: represents ownership of an area of memory from
+which allocations can be made. This object provides the mechanism to
+acquire <tt>Allocation&lt;T&gt;</tt> objects, and also provides a mechanism to
+sub-divide the area into nested <tt>MemoryPool</tt> objects to partition
+the memory space.</p></li></ul><p>Each of the above dependency types represents a different memory management
+capability. By following the dependency graph a system maintainer can
+track all places where dynamic memory may be allocated or freed, and
+the <tt>MemoryPool</tt> mechanism allows subdivision of the heap into a fixed
+memory map where desired.</p></section>
+  </div>
+</article>
+
+
+  </section>
+
+  </div>
+
+</div>
+
+<amp-analytics type="googleanalytics" id="analytics1">
+<script type="application/json">
+{
+  "vars": {
+    "account": "UA-3654925-3"
+  },
+  "triggers": {
+    "trackPageview": {
+      "on": "visible",
+      "request": "pageview"
+    }
+  }
+}
+</script>
+</amp-analytics>
+</body>
+</html>

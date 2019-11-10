@@ -1,0 +1,399 @@
+<!doctype html>
+<html amp lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>
+Terraform Environment+Application Design Pattern: Overview and Definitions - apparently.me.uk
+</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    
+<link rel="canonical" href="/terraform-environment-application-pattern/overview.html">
+<link rel="up" href="/terraform-environment-application-pattern/">
+
+<meta property="og:title" content="Terraform Environment+Application Design Pattern: Overview and Definitions">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="apparently.me.uk">
+<link rel="feed" type="application/rss+xml" href="/articles.rss">
+<script type="application/ld+json">
+  {
+  "@context": "http://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Terraform Environment+Application Design Pattern: Overview and Definitions",
+  "datePublished": "2017-02-18"
+  }
+</script>
+
+    <meta property="fb:admins" content="509714340" />
+    <meta name="google-site-verification" content="ZzodgjzpqgeNLVSHnRTeHSSoxs9hpDrUJ8BmT1WNvEk" />
+    <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lobster|Raleway:400,600|Inconsolata">
+    <style amp-custom>/* https://www.google.com/fonts#UsePlace:use/Collection:Lobster|Raleway:400,600|Inconsolata */
+@media screen {
+  html {
+    font-size: 12px; } }
+
+@media print {
+  html {
+    font-size: 12px; } }
+
+@media only screen and (min-width: 665px) {
+  html {
+    font-size: 15px; } }
+
+@media only screen and (min-width: 940px) {
+  html {
+    font-size: 18px; } }
+
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  line-height: 1.61803rem;
+  font-family: Raleway, sans-serif;
+  font-weight: 400;
+  background: #f4f6f8;
+  color: #333; }
+  @media print {
+    html {
+      background: #ffffff;
+      color: #000000; } }
+html, body {
+  margin: 0;
+  padding: 0; }
+
+body {
+  padding: 0 1.61803rem;
+  background: transparent; }
+
+a {
+  text-decoration: none;
+  color: #960115;
+  cursor: pointer; }
+
+#everything {
+  max-width: 66ch;
+  margin: 0 auto; }
+
+header {
+  height: 6.47214rem;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  cursor: default; }
+  header h1 {
+    font-family: "Lobster", sans-serif;
+    font-weight: 400;
+    line-height: 4.8541rem;
+    font-size: 3rem;
+    margin: 0;
+    margin-top: 0.5rem;
+    float: left; }
+  header p {
+    margin: 0;
+    margin-top: 2.42705rem;
+    padding-top: 0.15rem;
+    float: right;
+    font-size: 2em;
+    margin-left: 1.61803rem; }
+  @media print {
+    header {
+      display: none; } }
+#content {
+  margin-top: -0.3rem; }
+  #content.ng-enter {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 0; }
+    #content.ng-enter.ng-enter-active {
+      opacity: 1; }
+  #content.ng-leave {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 1; }
+    #content.ng-leave.ng-leave-active {
+      opacity: 0; }
+  #content p, #content h2, #content h3, #content li, #content ul, #content ol, #content dl, #content dt {
+    margin: 0;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: inherit; }
+  #content .article-masthead h2 {
+    font-size: 3rem;
+    line-height: 4.8541rem;
+    text-align: center;
+    margin: 0 1.61803rem;
+    margin-top: 1.61803rem;
+    font-weight: 600; }
+    @media only screen and (max-width: 330px) {
+      #content .article-masthead h2 {
+        font-size: 2rem;
+        line-height: 3.23607rem; } }
+    #content .article-masthead h2 a {
+      color: inherit; }
+      #content .article-masthead h2 a:hover {
+        text-decoration: none;
+        color: #960115; }
+  #content .article-masthead time, #content .article-masthead .article-subhed {
+    text-align: center;
+    margin-bottom: 3.33607rem;
+    display: block;
+    margin-top: 0.80902rem; }
+  @media print {
+    #content .article-masthead {
+      margin-top: 3.23607rem;
+      margin-bottom: 3.23607rem; } }
+  #content .article-part-nav {
+    margin-top: 3.33607rem;
+    margin-bottom: 3.33607rem; }
+  #content h3 {
+    font-size: 2rem;
+    line-height: 3.23607rem;
+    margin-top: 3.23607rem;
+    margin-bottom: 1.41803rem;
+    padding-top: 0.2rem;
+    font-weight: 600;
+    page-break-after: avoid; }
+  #content p {
+    font-size: 1rem;
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    text-align: justify;
+    widows: 3;
+    orphans: 3; }
+  #content li {
+    margin-left: 1.61803rem; }
+  #content ul, #content ol {
+    margin-bottom: 1.61803rem; }
+  #content code, #content tt, #content pre, #content kbd {
+    font-family: Inconsolata, monospace;
+    font-weight: 400;
+    line-height: 1.61803rem; }
+  #content code, #content tt, #content kbd {
+    line-height: 0; }
+  #content .code, #content .terminal {
+    padding: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    background: #E9EBED;
+    overflow-y: auto;
+    widows: 5;
+    orphans: 5; }
+    @media print {
+      #content .code, #content .terminal {
+        padding: 0;
+        margin-top: 0;
+        margin-bottom: 1.61803rem;
+        margin-left: 0;
+        margin-right: 0;
+        background: inherit;
+        color: inherit;
+        page-break-before: avoid; } }
+    #content .code .comment, #content .terminal .comment {
+      color: #7f7f7f; }
+      @media print {
+        #content .code .comment, #content .terminal .comment {
+          color: #333333; } }
+    #content .code .keyword, #content .terminal .keyword {
+      color: #960115; }
+    #content .code .string, #content .terminal .string {
+      color: #CF001C; }
+    #content .code .name, #content .terminal .name {
+      color: #445588; }
+  #content .terminal {
+    background: #333333;
+    color: #E9EBED; }
+    @media print {
+      #content .terminal {
+        color: inherit;
+        background: inherit; } }
+  #content aside {
+    padding-top: calc(1.61803rem - 1px);
+    padding-left: 1.61803rem;
+    padding-right: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: calc(1.61803rem - 1px);
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    border-bottom: 1px dashed #333333;
+    border-top: 1px dashed #333333; }
+    #content aside.note > :first-child::before {
+      content: "Note: ";
+      font-weight: bold; }
+  #content strong, #content b {
+    font-weight: 600; }
+  #content ol.parts {
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem; }
+  #content ol.parts li {
+    list-style: none;
+    margin: 0;
+    padding: 0; }
+    #content ol.parts li.current {
+      font-weight: bold; }
+  #content .card {
+    margin-bottom: 1.09994rem; }
+    #content .card .carddate {
+      float: right;
+      padding-top: 0.80902rem; }
+    #content .card .cardtitle {
+      line-height: 2.42705rem;
+      font-size: 1.5rem;
+      padding-top: 0.24271rem; }
+    #content .card .cardsummary {
+      margin-top: -0.24271rem; }
+</style>
+    <script async src="https://cdn.ampproject.org/v0.js"></script>
+    <script async custom-element="amp-analytics" src="https://cdn.ampproject.org/v0/amp-analytics-0.1.js"></script>
+</head>
+<body>
+
+<div id="everything">
+
+  <header>
+    <div id="titleblurb">
+    <h1><a href="/">apparently.me.uk</a></h1>
+    <p>By <a href="http://martin.atkins.me.uk/" rel="me author">Martin Atkins</a></p>
+    </div>
+  </header>
+
+  <section id="content">
+
+    
+<article class="full h-entry" itemscope itemtype="http://schema.org/Article">
+  <div class="article-masthead">
+    <h2 itemprop="name" class="p-name"><a href="/terraform-environment-application-pattern/">Terraform Environment+Application Design Pattern</a></h2>
+    <div class="article-subhed">Overview and Definitions</div>
+  </div>
+  <div class="article-body e-content" itemprop="articleBody">
+    <p>This is the first part of <a href="./">a series of articles on the Terraform E+A Pattern</a>.
+Before getting into the details, let's establish some terminology. For the
+purpose of this article, the overall system consists of a number of
+<em>environments</em> that provide some shared, foundational infrastructure, and then
+several <em>applications</em> that are separately deployable into those environments.</p><p>The goal of <em>environments</em> is to create a situation where some or all of
+the system components are duplicated so that changes (whether to infrastructure
+or application code) can be tested without risking the primary "production"
+environment. For the sake of our discussion here we will consider just two
+environments, which I'll call "QA" and "Production". Other teams might refer
+to the former of these as "staging", "test", or "pre-production"; whatever
+you call it, it's a duplicate of production that is entirely separate from it,
+so that changes to QA can be made with the confidence that the "real system"
+(used by customers) won't be affected.</p><p><em>Applications</em> are system components that usually implement some business logic
+for your product, that are deployed once for each environment, and that may
+interact both with shared environment infrastructure and with other
+applications. Other teams might refer to applications as "services",
+"micro-services", etc. The intent is just that each application is deployed
+independently of the others, and interacts with the environment and other
+applications via well-defined interfaces to manage risk as things change
+over time.</p><p>It's easier to discuss the pattern with practical examples, so for the sake
+of this article I'm going to use network and compute resources from <a href="https://aws.amazon.com/" target="_blank">AWS</a>,
+<a href="https://consul.io/" target="_blank">Consul</a> as a configuration store, and some other ancillary providers here and
+there to illustrate different ideas. The general pattern is provider-agnostic
+however, and should map onto other products that have comparable capabilities;
+the only strong requirement is that there must be a data store for which
+Terraform has both read and write capabilities.</p><p>I'm also going to use a ficticious placeholder system for my examples. This
+system is a typical web content management system that consists of a
+public-facing "renderer" application that produces the pages used by end-users,
+an internal-team-facing "editor" application that is used by content authors
+to produce content, and a "store" application that provides a common backend
+API for the renderer and editor that acts as the interface to the system's
+core data.</p><section id="limits-of-scale"><h3>Limits of Scale</h3><p>No pattern is a magic bullet, so rather than promising you huge success I will
+first discuss the limits of my experience with this pattern and the challenges
+I'd anticipate with growing beyond those limits.</p><p>This pattern has been successfully deployed as the organizational principle
+behind a system consisting of tens of applications deployed across three
+environments.</p><p>The scaling limits hit in that system were largely those of underlying
+technology used by those specific applications rather than of the pattern
+itself.</p><p>This pattern has not yet been applied to a system with hundreds or thousands
+of distinct applications sharing common infrastructure. Many new challenges
+emerge at this scale which often warrant a higher level of abstraction
+for applications interacting with infrastructure, and it's not known to what
+extent those new challenges can be addressed within this pattern.</p><p>My suspicion -- not yet tested in practice! -- is that the pattern can scale
+to the extent that the underlying technology choices are appropriate. For
+example, although this article uses AWS EC2 compute infrastructure directly for
+application deployment, the environments could instead provide a smarter
+workload scheduler such as <a href="https://kubernetes.io/" target="_blank">Kubernetes</a> or <a href="https://nomadproject.io/" target="_blank">Nomad</a> and yet still use Terraform
+to deploy workloads to that scheduler.</p><p>Regardless of technology choice, I'd encourage prototyping with some real
+applications adapted to this pattern before going all-in. Fundamentally how
+well this pattern suits your system will depend on many different concerns,
+such as how your team is structured and what other technology choices you
+have already made.</p></section><section id="environment-agnostic-infrastructure"><h3>Environment-Agnostic Infrastructure</h3><p>Although the ultimate goal is for each environment to be distinct, practical
+concerns will usually lead to at least <em>some</em> components being shared
+across environments. This might include your AWS account itself (though a
+separate account per environment is certainly possible too), some user accounts
+used by engineers to access the system, and most importantly some
+infrastructure that you use to manage the environments themselves.</p><p>When getting started it's often fine and pragmatic to set up these foundational
+services manually, or just stand up the environments by running Terraform on
+your local computer. You can always come back and put automation around this
+later.</p><p>Since the global infrastructure is not the focus of this article I will just
+assume that you have already created the accounts you need on any cloud
+infrastructure you intend to use, or you've racked and powered on physical
+network infrastructure and datacenter management infrastructure. I'll also
+assume you have somewhere to run Terraform that has the appropriate access
+to those resources.</p><p>As you get your system more firmly in place and want to better automate it,
+it's possible to start running Terraform through tools such as <a href="https://jenkins.io/" target="_blank">Jenkins</a> or
+Hashicorp's own <a href="https://www.hashicorp.com/terraform.html" target="_blank">Terraform Enterprise</a>, but when starting entirely from
+scratch I find it's easiest to work locally to get the basics in place and
+then retroactively automate the setup of the foundational elements. We won't
+go into this any deeper for now.</p></section>
+  </div>
+  <div class="article-part-nav">
+    <ol class="parts">
+      
+        
+        <li class="current"><a href="/terraform-environment-application-pattern/overview.html" rel="self">Part 1: Overview and Definitions</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/creating-environments.html">Part 2: Creating Environments</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/per-application-configuration.html">Part 3: Per-application Configuration</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/join-environment-module.html">Part 4: The "Join Environment" Module</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/conclusion.html">Part 5: Conclusion</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/bonus-patterns.html">Part 6: Bonus Patterns</a></li>
+        
+      
+    </ol>
+  </div>
+</article>
+
+
+  </section>
+
+  </div>
+
+</div>
+
+<amp-analytics type="googleanalytics" id="analytics1">
+<script type="application/json">
+{
+  "vars": {
+    "account": "UA-3654925-3"
+  },
+  "triggers": {
+    "trackPageview": {
+      "on": "visible",
+      "request": "pageview"
+    }
+  }
+}
+</script>
+</amp-analytics>
+</body>
+</html>

@@ -1,0 +1,374 @@
+<!doctype html>
+<html amp lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>
+Terraform Environment+Application Design Pattern: Conclusion - apparently.me.uk
+</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    
+<link rel="canonical" href="/terraform-environment-application-pattern/conclusion.html">
+<link rel="up" href="/terraform-environment-application-pattern/">
+
+<meta property="og:title" content="Terraform Environment+Application Design Pattern: Conclusion">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="apparently.me.uk">
+<link rel="feed" type="application/rss+xml" href="/articles.rss">
+<script type="application/ld+json">
+  {
+  "@context": "http://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Terraform Environment+Application Design Pattern: Conclusion",
+  "datePublished": "2017-02-18"
+  }
+</script>
+
+    <meta property="fb:admins" content="509714340" />
+    <meta name="google-site-verification" content="ZzodgjzpqgeNLVSHnRTeHSSoxs9hpDrUJ8BmT1WNvEk" />
+    <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lobster|Raleway:400,600|Inconsolata">
+    <style amp-custom>/* https://www.google.com/fonts#UsePlace:use/Collection:Lobster|Raleway:400,600|Inconsolata */
+@media screen {
+  html {
+    font-size: 12px; } }
+
+@media print {
+  html {
+    font-size: 12px; } }
+
+@media only screen and (min-width: 665px) {
+  html {
+    font-size: 15px; } }
+
+@media only screen and (min-width: 940px) {
+  html {
+    font-size: 18px; } }
+
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  line-height: 1.61803rem;
+  font-family: Raleway, sans-serif;
+  font-weight: 400;
+  background: #f4f6f8;
+  color: #333; }
+  @media print {
+    html {
+      background: #ffffff;
+      color: #000000; } }
+html, body {
+  margin: 0;
+  padding: 0; }
+
+body {
+  padding: 0 1.61803rem;
+  background: transparent; }
+
+a {
+  text-decoration: none;
+  color: #960115;
+  cursor: pointer; }
+
+#everything {
+  max-width: 66ch;
+  margin: 0 auto; }
+
+header {
+  height: 6.47214rem;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  cursor: default; }
+  header h1 {
+    font-family: "Lobster", sans-serif;
+    font-weight: 400;
+    line-height: 4.8541rem;
+    font-size: 3rem;
+    margin: 0;
+    margin-top: 0.5rem;
+    float: left; }
+  header p {
+    margin: 0;
+    margin-top: 2.42705rem;
+    padding-top: 0.15rem;
+    float: right;
+    font-size: 2em;
+    margin-left: 1.61803rem; }
+  @media print {
+    header {
+      display: none; } }
+#content {
+  margin-top: -0.3rem; }
+  #content.ng-enter {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 0; }
+    #content.ng-enter.ng-enter-active {
+      opacity: 1; }
+  #content.ng-leave {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 1; }
+    #content.ng-leave.ng-leave-active {
+      opacity: 0; }
+  #content p, #content h2, #content h3, #content li, #content ul, #content ol, #content dl, #content dt {
+    margin: 0;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: inherit; }
+  #content .article-masthead h2 {
+    font-size: 3rem;
+    line-height: 4.8541rem;
+    text-align: center;
+    margin: 0 1.61803rem;
+    margin-top: 1.61803rem;
+    font-weight: 600; }
+    @media only screen and (max-width: 330px) {
+      #content .article-masthead h2 {
+        font-size: 2rem;
+        line-height: 3.23607rem; } }
+    #content .article-masthead h2 a {
+      color: inherit; }
+      #content .article-masthead h2 a:hover {
+        text-decoration: none;
+        color: #960115; }
+  #content .article-masthead time, #content .article-masthead .article-subhed {
+    text-align: center;
+    margin-bottom: 3.33607rem;
+    display: block;
+    margin-top: 0.80902rem; }
+  @media print {
+    #content .article-masthead {
+      margin-top: 3.23607rem;
+      margin-bottom: 3.23607rem; } }
+  #content .article-part-nav {
+    margin-top: 3.33607rem;
+    margin-bottom: 3.33607rem; }
+  #content h3 {
+    font-size: 2rem;
+    line-height: 3.23607rem;
+    margin-top: 3.23607rem;
+    margin-bottom: 1.41803rem;
+    padding-top: 0.2rem;
+    font-weight: 600;
+    page-break-after: avoid; }
+  #content p {
+    font-size: 1rem;
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    text-align: justify;
+    widows: 3;
+    orphans: 3; }
+  #content li {
+    margin-left: 1.61803rem; }
+  #content ul, #content ol {
+    margin-bottom: 1.61803rem; }
+  #content code, #content tt, #content pre, #content kbd {
+    font-family: Inconsolata, monospace;
+    font-weight: 400;
+    line-height: 1.61803rem; }
+  #content code, #content tt, #content kbd {
+    line-height: 0; }
+  #content .code, #content .terminal {
+    padding: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    background: #E9EBED;
+    overflow-y: auto;
+    widows: 5;
+    orphans: 5; }
+    @media print {
+      #content .code, #content .terminal {
+        padding: 0;
+        margin-top: 0;
+        margin-bottom: 1.61803rem;
+        margin-left: 0;
+        margin-right: 0;
+        background: inherit;
+        color: inherit;
+        page-break-before: avoid; } }
+    #content .code .comment, #content .terminal .comment {
+      color: #7f7f7f; }
+      @media print {
+        #content .code .comment, #content .terminal .comment {
+          color: #333333; } }
+    #content .code .keyword, #content .terminal .keyword {
+      color: #960115; }
+    #content .code .string, #content .terminal .string {
+      color: #CF001C; }
+    #content .code .name, #content .terminal .name {
+      color: #445588; }
+  #content .terminal {
+    background: #333333;
+    color: #E9EBED; }
+    @media print {
+      #content .terminal {
+        color: inherit;
+        background: inherit; } }
+  #content aside {
+    padding-top: calc(1.61803rem - 1px);
+    padding-left: 1.61803rem;
+    padding-right: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: calc(1.61803rem - 1px);
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    border-bottom: 1px dashed #333333;
+    border-top: 1px dashed #333333; }
+    #content aside.note > :first-child::before {
+      content: "Note: ";
+      font-weight: bold; }
+  #content strong, #content b {
+    font-weight: 600; }
+  #content ol.parts {
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem; }
+  #content ol.parts li {
+    list-style: none;
+    margin: 0;
+    padding: 0; }
+    #content ol.parts li.current {
+      font-weight: bold; }
+  #content .card {
+    margin-bottom: 1.09994rem; }
+    #content .card .carddate {
+      float: right;
+      padding-top: 0.80902rem; }
+    #content .card .cardtitle {
+      line-height: 2.42705rem;
+      font-size: 1.5rem;
+      padding-top: 0.24271rem; }
+    #content .card .cardsummary {
+      margin-top: -0.24271rem; }
+</style>
+    <script async src="https://cdn.ampproject.org/v0.js"></script>
+    <script async custom-element="amp-analytics" src="https://cdn.ampproject.org/v0/amp-analytics-0.1.js"></script>
+</head>
+<body>
+
+<div id="everything">
+
+  <header>
+    <div id="titleblurb">
+    <h1><a href="/">apparently.me.uk</a></h1>
+    <p>By <a href="http://martin.atkins.me.uk/" rel="me author">Martin Atkins</a></p>
+    </div>
+  </header>
+
+  <section id="content">
+
+    
+<article class="full h-entry" itemscope itemtype="http://schema.org/Article">
+  <div class="article-masthead">
+    <h2 itemprop="name" class="p-name"><a href="/terraform-environment-application-pattern/">Terraform Environment+Application Design Pattern</a></h2>
+    <div class="article-subhed">Conclusion</div>
+  </div>
+  <div class="article-body e-content" itemprop="articleBody">
+    <p>This is the final (non-bonus) part of a series on <a href="./">the Terraform E+A pattern</a>.
+If you've arrived here first, I suggest reading from the beginning to
+understand what this is all about.</p><p>Throughout this series we have seen how we can use Terraform to deploy a
+set of applications across multiple deployment environments so that a system
+can be effectively duplicated for pre-production testing and other purposes.</p><p>An <em>environment</em> gives us a set of shared infrastructure that provide the
+applications somewhere to run and a means to communicate. The applications
+themselves can then use these resources in conjunction with their own and
+those of other applications to produce a modular system.</p><p>A key benefit of using Terraform in this manner is to facilitate communication
+within and between teams in an organization.</p><section id="terraform-as-a-communication-tool"><h3>Terraform as a Communication Tool</h3><p>Many uses of Terraform are oriented just at making a particular team more
+productive: rather than manually managing resources or hand-rolling provisioning
+scripts, we can describe our infrastructure with Terraform and free ourselves
+from worrying about all the details of how that infrastructure gets wired
+together.</p><p>The E+A Pattern embraces Terraform for a loftier purpose: to create interfaces
+between systems, and thus in turn between teams. As technical organizations
+grow they often divide into multiple teams with different responsibilities
+and/or skill-sets, and we are confronted with the problem of how to connect
+together many small parts created by different teams into a cohesive whole.</p><p>The system architecture that was the archetype for the E+A Pattern was one
+where a small group of technical specialists established some shared
+infratructure (the environments) and then many small, frequently-changing
+teams built and deployed co-operating applications on that infrastructure.
+Most applications in this system are using EC2 autoscaling, but some of
+the subsystems have benefitted from extensive use of AWS Lambda and various
+higher-level AWS infrastructure services such as Kinesis Firehose and
+Simple Notification Service.</p><p>Terraform is a boon here because it codifies both the infrastructure within
+a subsystem and the connections <em>between</em> subsystems. When one team needs to
+provide a subsystem to be consumed by other subsystems, Terraform makes it easy
+to orchestrate the integration of those systems without manual wiring. As team
+structures shift over time due to development priorities change, new team
+members can quickly understand what an application is "made of" by seeing how
+its own infrastructure is created and how it connects with that of other
+systems.</p><p>Terraform's generality is also a benefit, since a team can become familiar
+with one tool and then apply it to a variety of different situations where
+different technology is appropriate. Rather than each subsystem having its own
+deployment solution, or forcing all subsystems into a narrow set of technology
+constraints, Terraform can allow each application to use the technology best
+suited to its problem while reducing the chances of creating "knowledge silos"
+where engineers have difficulty shifting between teams.</p><p>The E+A Pattern aims to create a structure in which Terraform can most readily
+provide the above benefits, separating concerns so that Terraform can scale
+to meet the needs of larger teams and more complex systems.</p></section><section id="where-to-from-here"><h3>Where to from here?</h3><p>The main parts of this series up until this point have described through
+example a very general design pattern. This provides a framework for
+creating a practical system, but leaves many details as an exercise to the
+implementer.</p><p>In the sixth and final section of this series we'll discuss some "bonus
+patterns" that build on the E+A pattern either to solve additional problems
+or to specialize the general pattern to a more specific situation.</p></section>
+  </div>
+  <div class="article-part-nav">
+    <ol class="parts">
+      
+        
+        <li><a href="/terraform-environment-application-pattern/overview.html">Part 1: Overview and Definitions</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/creating-environments.html">Part 2: Creating Environments</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/per-application-configuration.html">Part 3: Per-application Configuration</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/join-environment-module.html">Part 4: The "Join Environment" Module</a></li>
+        
+      
+        
+        <li class="current"><a href="/terraform-environment-application-pattern/conclusion.html" rel="self">Part 5: Conclusion</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/bonus-patterns.html">Part 6: Bonus Patterns</a></li>
+        
+      
+    </ol>
+  </div>
+</article>
+
+
+  </section>
+
+  </div>
+
+</div>
+
+<amp-analytics type="googleanalytics" id="analytics1">
+<script type="application/json">
+{
+  "vars": {
+    "account": "UA-3654925-3"
+  },
+  "triggers": {
+    "trackPageview": {
+      "on": "visible",
+      "request": "pageview"
+    }
+  }
+}
+</script>
+</amp-analytics>
+</body>
+</html>

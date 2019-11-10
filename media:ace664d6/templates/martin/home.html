@@ -1,0 +1,22 @@
+    <section class="intro-blurb">
+      <p>Martin Atkins is a software engineer living and working in
+        San Francisco. Some of his favorite projects are shown below.
+        Some are professional, others are personal, and others still are
+        purely exploratory.</p>
+    </section>
+
+    <section class="cards articles">
+
+      <div class="card" ng-repeat="article in articles">
+           <div class="cardimage" style="background-image: url({{ article.mainImageUrl }})"><a href="{{ article.url }}">
+               <div class="cardtypetag">
+                 {{ article.type }}
+               </div>
+           </a></div>
+           <div class="carddesc">
+             <div class="cardtitle"><a href="{{ article.url }}">{{ article.title }}</a></div>
+             <div class="cardsummary">{{ article.summary }}</div>
+           </div>
+      </div>
+
+    </section>

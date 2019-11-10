@@ -1,0 +1,13 @@
+    <section class="cards articles">
+
+      <div class="card" ng-repeat="article in articles">
+           <div class="carddate">
+               <time datetime="{{ article.date | date:'yyyy-MM-dd' }}" itemprop="datePublished">{{ article.date | date:'mediumDate' }}</time>
+           </div>
+           <div class="carddesc">
+             <div class="cardtitle"><a href="{{ article.url }}">{{ article.title }}</a></div>
+             <div class="cardsummary">{{ article.summary }}</div>
+           </div>
+      </div>
+
+    </section>

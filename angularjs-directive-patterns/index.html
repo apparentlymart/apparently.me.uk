@@ -1,0 +1,515 @@
+<!doctype html>
+<html amp lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>
+Design Patterns with AngularJS Directives - apparently.me.uk
+</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    
+<link rel="canonical" href="/angularjs-directive-patterns/">
+<meta name="description" content="Examples of different ways AngularJS directives can be used to design effective application views">
+
+<meta property="og:title" content="Design Patterns with AngularJS Directives">
+<meta property="og:type" content="article">
+<meta property="og:description" content="Examples of different ways AngularJS directives can be used to design effective application views">
+<meta property="og:site_name" content="apparently.me.uk">
+<link rel="feed" type="application/rss+xml" href="/articles.rss">
+<script type="application/ld+json">
+  {
+  "@context": "http://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Design Patterns with AngularJS Directives",
+  "datePublished": "2014-09-20"
+  }
+</script>
+
+    <meta property="fb:admins" content="509714340" />
+    <meta name="google-site-verification" content="ZzodgjzpqgeNLVSHnRTeHSSoxs9hpDrUJ8BmT1WNvEk" />
+    <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lobster|Raleway:400,600|Inconsolata">
+    <style amp-custom>/* https://www.google.com/fonts#UsePlace:use/Collection:Lobster|Raleway:400,600|Inconsolata */
+@media screen {
+  html {
+    font-size: 12px; } }
+
+@media print {
+  html {
+    font-size: 12px; } }
+
+@media only screen and (min-width: 665px) {
+  html {
+    font-size: 15px; } }
+
+@media only screen and (min-width: 940px) {
+  html {
+    font-size: 18px; } }
+
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  line-height: 1.61803rem;
+  font-family: Raleway, sans-serif;
+  font-weight: 400;
+  background: #f4f6f8;
+  color: #333; }
+  @media print {
+    html {
+      background: #ffffff;
+      color: #000000; } }
+html, body {
+  margin: 0;
+  padding: 0; }
+
+body {
+  padding: 0 1.61803rem;
+  background: transparent; }
+
+a {
+  text-decoration: none;
+  color: #960115;
+  cursor: pointer; }
+
+#everything {
+  max-width: 66ch;
+  margin: 0 auto; }
+
+header {
+  height: 6.47214rem;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  cursor: default; }
+  header h1 {
+    font-family: "Lobster", sans-serif;
+    font-weight: 400;
+    line-height: 4.8541rem;
+    font-size: 3rem;
+    margin: 0;
+    margin-top: 0.5rem;
+    float: left; }
+  header p {
+    margin: 0;
+    margin-top: 2.42705rem;
+    padding-top: 0.15rem;
+    float: right;
+    font-size: 2em;
+    margin-left: 1.61803rem; }
+  @media print {
+    header {
+      display: none; } }
+#content {
+  margin-top: -0.3rem; }
+  #content.ng-enter {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 0; }
+    #content.ng-enter.ng-enter-active {
+      opacity: 1; }
+  #content.ng-leave {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 1; }
+    #content.ng-leave.ng-leave-active {
+      opacity: 0; }
+  #content p, #content h2, #content h3, #content li, #content ul, #content ol, #content dl, #content dt {
+    margin: 0;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: inherit; }
+  #content .article-masthead h2 {
+    font-size: 3rem;
+    line-height: 4.8541rem;
+    text-align: center;
+    margin: 0 1.61803rem;
+    margin-top: 1.61803rem;
+    font-weight: 600; }
+    @media only screen and (max-width: 330px) {
+      #content .article-masthead h2 {
+        font-size: 2rem;
+        line-height: 3.23607rem; } }
+    #content .article-masthead h2 a {
+      color: inherit; }
+      #content .article-masthead h2 a:hover {
+        text-decoration: none;
+        color: #960115; }
+  #content .article-masthead time, #content .article-masthead .article-subhed {
+    text-align: center;
+    margin-bottom: 3.33607rem;
+    display: block;
+    margin-top: 0.80902rem; }
+  @media print {
+    #content .article-masthead {
+      margin-top: 3.23607rem;
+      margin-bottom: 3.23607rem; } }
+  #content .article-part-nav {
+    margin-top: 3.33607rem;
+    margin-bottom: 3.33607rem; }
+  #content h3 {
+    font-size: 2rem;
+    line-height: 3.23607rem;
+    margin-top: 3.23607rem;
+    margin-bottom: 1.41803rem;
+    padding-top: 0.2rem;
+    font-weight: 600;
+    page-break-after: avoid; }
+  #content p {
+    font-size: 1rem;
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    text-align: justify;
+    widows: 3;
+    orphans: 3; }
+  #content li {
+    margin-left: 1.61803rem; }
+  #content ul, #content ol {
+    margin-bottom: 1.61803rem; }
+  #content code, #content tt, #content pre, #content kbd {
+    font-family: Inconsolata, monospace;
+    font-weight: 400;
+    line-height: 1.61803rem; }
+  #content code, #content tt, #content kbd {
+    line-height: 0; }
+  #content .code, #content .terminal {
+    padding: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    background: #E9EBED;
+    overflow-y: auto;
+    widows: 5;
+    orphans: 5; }
+    @media print {
+      #content .code, #content .terminal {
+        padding: 0;
+        margin-top: 0;
+        margin-bottom: 1.61803rem;
+        margin-left: 0;
+        margin-right: 0;
+        background: inherit;
+        color: inherit;
+        page-break-before: avoid; } }
+    #content .code .comment, #content .terminal .comment {
+      color: #7f7f7f; }
+      @media print {
+        #content .code .comment, #content .terminal .comment {
+          color: #333333; } }
+    #content .code .keyword, #content .terminal .keyword {
+      color: #960115; }
+    #content .code .string, #content .terminal .string {
+      color: #CF001C; }
+    #content .code .name, #content .terminal .name {
+      color: #445588; }
+  #content .terminal {
+    background: #333333;
+    color: #E9EBED; }
+    @media print {
+      #content .terminal {
+        color: inherit;
+        background: inherit; } }
+  #content aside {
+    padding-top: calc(1.61803rem - 1px);
+    padding-left: 1.61803rem;
+    padding-right: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: calc(1.61803rem - 1px);
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    border-bottom: 1px dashed #333333;
+    border-top: 1px dashed #333333; }
+    #content aside.note > :first-child::before {
+      content: "Note: ";
+      font-weight: bold; }
+  #content strong, #content b {
+    font-weight: 600; }
+  #content ol.parts {
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem; }
+  #content ol.parts li {
+    list-style: none;
+    margin: 0;
+    padding: 0; }
+    #content ol.parts li.current {
+      font-weight: bold; }
+  #content .card {
+    margin-bottom: 1.09994rem; }
+    #content .card .carddate {
+      float: right;
+      padding-top: 0.80902rem; }
+    #content .card .cardtitle {
+      line-height: 2.42705rem;
+      font-size: 1.5rem;
+      padding-top: 0.24271rem; }
+    #content .card .cardsummary {
+      margin-top: -0.24271rem; }
+</style>
+    <script async src="https://cdn.ampproject.org/v0.js"></script>
+    <script async custom-element="amp-analytics" src="https://cdn.ampproject.org/v0/amp-analytics-0.1.js"></script>
+</head>
+<body>
+
+<div id="everything">
+
+  <header>
+    <div id="titleblurb">
+    <h1><a href="/">apparently.me.uk</a></h1>
+    <p>By <a href="http://martin.atkins.me.uk/" rel="me author">Martin Atkins</a></p>
+    </div>
+  </header>
+
+  <section id="content">
+
+    
+<article class="full h-entry" itemscope itemtype="http://schema.org/Article">
+  <div class="article-masthead">
+    <h2 itemprop="name" class="p-name">Design Patterns with AngularJS Directives</h2>
+    <time datetime="2014-09-20" itemprop="datePublished" class="dt-published">Sep 20 2014</time>
+  </div>
+  <div class="article-body e-content" itemprop="articleBody">
+    <p>One of the most powerful concepts AngularJS is the <em>directive</em>. Directives
+are a key building block, allowing behavior to be assigned to HTML elements
+in a declarative way, turning the HTML DOM into a rich template language for
+responsive, interactive applications.</p><p>Directives represent a very powerful and flexible tool, and it's often unclear
+how best to apply this tool to various problems. This article is a collection
+of design examples that apply directives to solve particular classes of
+problem. In the process we will explore the key features of AngularJS
+directives and see how these features can interact to produce positive as well
+as negative results.</p><p>This article assumes some familiarity with AngularJS concepts such as scopes,
+controllers and templates. If you're completely new to Angular, I suggest
+reading <a href="https://docs.angularjs.org/tutorial" target="_blank">the PhoneCat tutorial</a> as
+a starting point, and getting some experience using pre-existing directives
+before attempting to build your own.</p><section id="directive-basics"><h3>Directive Basics</h3><p>Before we get stuck in let's quickly recap the general principles of
+directives, to establish the terminology that will appear in the remainder
+of the article.</p><p>As noted above, directives allow behavior to be assigned to HTML elements.
+This occurs during Angular's <em>template compilation</em> process, in which it
+walks a HTML DOM tree and matches each node against the table of defined
+directives.</p><p>A defined directive can apply to a particular element name, a particular
+attribute name, a particular class (in the CSS sense) or to a special format
+of HTML comment. Most directives apply to element and/or attribute names,
+since these are the most natural to use in templates.</p><p>Given the various ways directives can apply, a given DOM node can potentially
+have several different directives applied to it. Here's a simple example
+of an HTML element with three attribute-based directives:</p><p>Each of the attributes instantiates a different directive and each directive
+operates largely independently of the others. Since they are all operating on
+the same element, is is important that their respective concerns are
+well-separated to avoid strange collisions in behavior.</p><section id="directive-instantiation-phases"><h4>Directive Instantiation Phases</h4><p>A directive is instantiated in two distinct phases.</p><p>The directive is first given an opportunity to "compile" its template, and in
+this phase it is operating on the original <em>template</em> DOM as given in the
+source HTML document, before any scopes have been assigned.</p><p>Most directives do not make use of this compilation phase, but a key example
+of the use of this phase is the <tt>ngRepeat</tt> directive, which produces zero
+or more copies of the template element it is given. During its compile phase
+it parses the repeat expression given in its attribute value, which thus
+informs how many copies of the element will be created.</p><p>Once directives have had an opportunity to "compile" they are then given the
+opportunity to "link". During the link phase the directive recieves its
+<em>instance element</em> and the corresponding scope, and the directive is
+responsible for connecting these together in whichever way is appropriate.</p><p>To understand the difference between the compile and link phases, the
+<tt>ngRepeat</tt> directive is again helpful. Considering again a simple
+example of a repeated element:</p><p>The <tt>ng-repeat</tt> attribute causes this element to be cloned potentially many
+times in the resulting DOM. From the perspective of the <tt>ngSrc</tt> directive,
+its <em>compilation</em> phase occurs only once, before those clones are created.
+Its <em>linking</em> phase is, on the other hand, likely to occur several times:
+once for each clone that is created, with each link call receiving a different
+instance element and scope.</p></section><section id="relationship-to-scopes-and-controllers"><h4>Relationship To Scopes and Controllers</h4><p>Angular's concept of <em>scopes</em> is also important when working with directives.
+Fundamentally a scope is just a collection of named values, possibly inheriting
+other named values from a <em>parent</em> scope.</p><p>Each scope is usually managed by a <em>controller</em>, which places data into the
+scope for use by templates as well as providing an API through which the
+template, as well as other controllers, can manipulate that data.</p><p>There are many ways to create scopes in Angular, and many applications of
+controllers. Directives are the most common means by which scopes are created,
+and instantiating controllers for those new scopes is often a key part of the
+link phase of a directive.</p></section></section><section id="simple-template-directives"><h3>Simple Template Directives</h3><p>By far the simplest case of a directive is one that exists just as an
+abstraction over a more complex HTML template, taking arguments from
+its attributes and making them available in the template.</p><p>This is such a common case that AngularJS allows it to be implemented
+in a completely declarative way:</p><p>This can then be used as follows:</p><p>In the above template declaration, the <tt>scope</tt> property tells the compiler
+that this directive needs its own local scope, and in turn requests that
+the scope should be populated with a <tt>name</tt> key whose value is bound to
+the contents of the <tt>name</tt> attribute. The <tt>@</tt> prefix on the property
+value indicates that we wish to interpret the attribute value as an
+interpolated string, which means we can also use interpolation syntax if
+required:</p><p>In terms of the directive phases described earlier, the Angular compiler
+is effectively providing a default compile and link phase for this kind
+of directive. In the compile phase, the provided template is recursively
+passed back into the compiler for processing. The link phase can then just
+link the new scope to the compiled template, producing the desired result.</p><p>This simple usage of directives is only a small step above the built-in
+<tt>ngInclude</tt> directive. The difference is that our custom directive can
+take data from custom element attributes rather than only from values
+already present in the parent scope, creating a small layer of abstraction
+between the templates.</p><p>Simple template directives are a great way to make reusable, self-contained
+bundles of markup that can be called on many times in your application.</p></section><section id="template-wrappers"><h3>Template Wrappers</h3><p>A small extension of the simple template case is a template that <em>wraps</em>
+some other caller-provided content. Consider for example a reusable modal
+dialog directive:</p><p>Since this template is longer than the previous one we'll keep it in a
+separate file and reference it by URL. Here's the contents of the template
+file:</p><p>First notice that in the <tt>scope</tt> property in the declaration we're now using
+the <tt>&amp;</tt> prefix instead of the <tt>@</tt> used previously. This requests that
+the given attribute be parsed as an <em>expression</em>, and the scope populated not
+with the result of the expression but instead a <em>function</em> that can be called
+to evaluate the expression. This allows the caller to provide an event handler
+that will be called on close, as we'll see in a moment.</p><p>The other point of note here is the use of the <tt>transclude</tt> property on
+the directive declaration, along with the <tt>ng-transclude</tt> attribute within
+the template. The former requests that the entire contents of the directive's
+template element be compiled and saved, while the latter causes the saved
+contents to be recalled and inserted as the contents of the annotated
+element.</p><p>With this all in place, we can make use of our modal dialog like this:</p><p>Here we assume that a parent controller has provided this <tt>dialogResult</tt>
+function in the scope. Its implementation is left as an exercise for the
+reader, but the result of this template will be an instance of the modal
+dialog template from above, with the provided question and buttons embedded in
+its content element. When the "close" widget on the modal is clicked, it will
+have the same effect as clicking the cancel button due to the use of the same
+event-handler for both.</p></section><section id="event-handling-directives"><h3>Event-handling Directives</h3><p>In the previous example we saw how a directive can provide an event-handling
+interface in addition to its other behavior. In the interests of separating
+concerns though, it's often useful to have directives whose only purpose is
+to detect events and signal them via expressions.</p><p>The built-in <tt>ngClick</tt>, <tt>ngBlur</tt> etc directives are examples of this in
+the standard library. Implementing an event-handling directive makes a good
+first example of a directive with custom compile and link phases, as opposed
+to providing a template and using the built-in functionality.</p><p>Let's consider the example of a directive that signals an event if the
+mouse pointer hovers over an element for three seconds. This is a contrived
+example but simple enough not to distract too much from the mechanism.</p><p>Unlike our previous examples, we do not specify the <tt>scope</tt> or <tt>template</tt>
+properties here. Only one directive on each element can use <tt>scope</tt>, so it
+is good manners to avoid its use on small directives intended for use in
+conjunction with others. We also want to have no visual effect on the document,
+so the use of <tt>template</tt> would be inappropriate here.</p><p>Instead, we manually implement the compile and link phases of our directive.
+In our compile phase, we make use of the <tt>$parse</tt> service, which is where
+Angular's expression parse is implemented. It takes a string containing
+an expression like <tt>"beginTakeover()"</tt>, and returns a function that takes
+a scope and returns the result of evaluating the expression in that scope.</p><p>The compile function ends by returning the link function. In the link function
+it's time to bind our behavior to the DOM, in this case by registering some
+DOM event handlers on our instance element <tt>iElement</tt>.</p><p>When the hover condition is eventually detected through the successful
+completion of our timeout, we finally call the function we obtained during
+the compile phase, passing in the related scope.</p><p>Since we set <tt>restrict</tt> to <tt>'A'</tt> in our declaration, this directive is
+valid only as an attribute. Where we left this unstated in the previous
+examples it defaulted to applying to both elements <em>and</em> attributes.</p><p>With all of that in place, it is a simple matter to use this directive:</p><p>Assuming some CSS is provided to make this element big enough to hover the
+mouse over, the <tt>beginTakeover</tt> function in the current scope will be
+called after the mouse dwells for three seconds, as we intended.</p><p>Recall that earlier we noted that there may be many calls to the link function
+for each call to the compile function. That is true here, for example if we
+were to combine <tt>ng-repeat</tt> with <tt>on-dwell</tt>:</p><p>In the above scenario, the directive's compile function will be called <em>once</em>,
+being passed in the single element that resulted from parsing the above
+HTML snippet. However, the returned link function will be <em>for each object</em> in
+the <tt>ads</tt> collection, and will be passed instead the <em>cloned</em>
+element that <tt>ng-repeat</tt> created, along with a child scope that contains one
+of the ads in the <tt>ad</tt> variable, causing <tt>ad.beginTakeover()</tt> to be called
+with the correct object for each element.</p><p>To keep distinct the concepts of the <em>template element</em> passed into compile
+and the <em>instance element</em> passed into link, it is conventional to name these
+ and  respectively.</p></section><section id="directives-with-controllers"><h3>Directives With Controllers</h3><p>In our earliest examples we saw how a directive can be used just as a simple
+container for encapsulating a template. Sometimes a static template is not
+enough however, and a controller is desired to bring some behavior into play.</p><p>The following is a declaration of a simple "image carousel" directive, which
+takes an array of image URLs and shows them one at a time, with buttons
+provided to navigate to the previous and next images.</p><p>Here the caller provides, via the <tt>image-urls</tt> attribute, an expression that
+evaluates to an array of strings containing image URLs. Our controller
+is responsible for selecting an appropriate current image URL. The selection
+can potentially change whenever the list of images changes (e.g. if there are
+now fewer items in the list) or when the user clicks on one of the navigation
+buttons. Angular also helpfully calls our <tt>$watchCollection</tt> callback once
+after first registration, triggering us to call <tt>update</tt> for the first time
+to initialize.</p><p>Here is the directive's template:</p><p>This combination of a scope, a template and a controller makes it easy to
+encapsulate a re-usable interactive visual component, with the caller just
+providing the data.</p><section id="on-directives-that-load-data"><h4>On Directives that Load Data</h4><p>Some developers are tempted to use directive controllers to load data from
+some data source and then display it. In most cases this is not advisable since
+it mixes the concern of loading the data with the concern of displaying it.
+It's better to at least separate the data loading into a <em>separate</em> controller,
+which can then be used via the <tt>ngController</tt> directive:</p><p>Better still, if your app is using a router it's often best to have the
+<em>route</em> controller be responsible for data loading, and limit the templates
+to just displaying data from the route's scope. This way the templates are
+completely unaware of where the data comes from.</p></section></section><section id="multiple-directives-on-one-element"><h3>Multiple Directives on One Element</h3><p>As we saw earlier, it's easy to combine multiple isolated directives on a
+single element as long as their functionality doesn't conflict. Sometimes,
+however, it is desirable for one directive to interact with another, with
+one directive providing a public API that can be consumed by another.</p><p>By far the most common use of this is in implementing custom form controls
+using <tt>ngModel</tt>. All of the form control handling in AngularJS is implemented
+by applying a specific UI element directive (the <em>view</em>) to the same element
+as the <tt>ngModel</tt> directive, with the latter providing an API to the former.</p><p>Let's see how that looks from the perspective of the UI element directive,
+by implementing a simple radio-button-based boolean form element.</p><p>This is slightly different from our earlier examples in that this directive
+provides a <em>link</em> implementation but just uses the default <em>compile</em>
+implementation, since no processing of the template element is required.
+In this case Angular behaves as if we had a compile function that simply
+immediately returned the given link function.</p><p>The main new feature here is the <tt>require</tt> property in the definition. This
+tells Angular that if there is also an <tt>ngModel</tt> instance connected to this
+directive, then provide its controller as an extra parameter to the link
+function. The question mark at the beginning indicates that this is an
+optional dependency, so the link function will recieve <tt>null</tt> if there
+is no <tt>ngModel</tt> present.</p><p>A full description of the functionality of <tt>ngModel</tt> is best left for an
+article of its own, but suffice it to say that it's purpose is to allow a
+separation between the value stored in the scope -- that is, the model value --
+from the form of the value used for presentation to the user. Between the
+two can be arbitrary transformations and validation steps.</p><p>In the above example, our interaction with the model is modest: we just
+translate between the boolean we store as the view model and the string
+we receive from the primitive form elements in the template. Here is the
+template, incidentally:</p><p>For convenience we're also using separate instances of <tt>ngModel</tt> on our
+internal radio buttons, but of course these instances are distinct from
+the one applied directly to our <tt>yesNoPicker</tt> element.</p><p>When this element is used in the template it must be used alongside <tt>ngModel</tt>
+in order to instantiate the controller we expect:</p><p>This technique allows us to <em>consume</em> the API provided by another directive
+on the same element. In the next section, we'll see how such an API can be
+provided.</p></section><section id="interacting-with-a-parent-directive"><h3>Interacting with a Parent Directive</h3><p>Sometimes it is necessary to build a template construct that is too complex
+to be declared with only one element. Constructs like <tt>ngSwitch</tt> require
+both a container element that establishes a context and then zero or more
+child elements that complete the definition.</p><p>These multi-element constructs can be implemented using the same <tt>require</tt>
+mechanism we saw in the previous section. To demonstrate, let's build a
+directive that provides an easy way to create an HTML table from a list
+of objects.</p><p>In this case we will actually need <em>two</em> directives: one to establish the
+table container, and the other to declare the individual columns.</p><p>This example brings together many features we've visited in earlier examples.
+The <tt>autoTable</tt> directive is just like our image carousel example where
+a template is combined with a controller, but this time the controller
+also provides the <tt>registerColumn</tt> method as its public API.</p><p>The <tt>col</tt> directive declares that it requires the <tt>autoTable</tt> directive,
+but this time it uses the <tt>?^</tt> prefix to indicate that this directive is
+required on the <em>parent</em> element. Again we declare it as optional, this time
+so that we don't interfere with the normal use of the <tt>col</tt> element in
+a plain HTML table.</p><p>Earlier we used <tt>$parse</tt> to process AngularJS expressions, while in this
+example we used <tt>$interpolate</tt> to process a string that may contain
+template interpolation syntax, like <tt>'Hello {{ name }}!'</tt>. Its result
+is the same: a function that takes a scope (or scope-like object) and returns
+the string result.</p><p>Here, as usual, is the template for the <tt>autoTable</tt> directive:</p><p>The <tt>col</tt> directive does not need a template because it is used only to
+provide data to the <tt>autoTable</tt> directive and it will be removed from the
+DOM once the template is initialized.</p><p>This pair of directives can then be used together as follows:</p><p>This then expects a <tt>users</tt> array looking like this:</p><p>It is a rare situation that requires a multi-directive construct like this,
+but when the need arises Angular's template system still provides for a
+clean separation of concerns between the different components by allowing
+each directive to provide a public API.</p></section><section id="conclusion"><h3>Conclusion</h3><p>Throughout this article we have seen that directives are a very flexible
+mechanism that can be employed to solve several different classes of problem.
+Fundamentally all of these different techniques can be implemented in terms
+of the low-level ability to define a custom compilation function, but
+Angular provides several shortcuts to simplify the most common cases of
+custom directives.</p><p>The examples in this article are intended to show some different ways the
+directive features can be combined to solve real-world problems. In summary,
+the features we've discussed are:</p><ul><li><p><strong>Directive-specific scopes</strong> with bindings to the parent scope via HTML
+attribute values, allowing data to be passed in from a parent directive.</p></li><li><p><strong>Directive-specific controller APIs</strong>, allowing data to be passed in from
+a child or sibling directive.</p></li><li><p><strong>Custom compilation and linking functions</strong>,
+allowing for arbitrary interactions with both the template and instance
+DOM elements.</p></li><li><p><strong>Child content transclusion</strong>, allowing a directive to wrap arbitrary child
+content inside additional template HTML.</p></li></ul><p>These building blocks together add up to support all of the varied
+functionality in Angular's standard directive library, as well as supporting
+your application's specialized DOM-manipulation needs.</p><p>For an example of a novel use of directives, see my other article
+on <a href="/angularjs-view-specific-sidebars/">view-specific sidebars</a>, which
+shows how directives can be used to move elements out of their original
+declaration context and into other parts of the document, such as the
+<tt>head</tt> element or an application's sidebars.</p><p>Directives are easily the most powerful feature of AngularJS, but also arguably
+the most misunderstood. I hope this article has shed some light on the various
+capabilities of directives and how they can be applied to produce a modular,
+maintainable application, or a useful reusable utility library.</p></section>
+  </div>
+</article>
+
+
+  </section>
+
+  </div>
+
+</div>
+
+<amp-analytics type="googleanalytics" id="analytics1">
+<script type="application/json">
+{
+  "vars": {
+    "account": "UA-3654925-3"
+  },
+  "triggers": {
+    "trackPageview": {
+      "on": "visible",
+      "request": "pageview"
+    }
+  }
+}
+</script>
+</amp-analytics>
+</body>
+</html>

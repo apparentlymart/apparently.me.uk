@@ -1,0 +1,1154 @@
+<?xml version='1.0' encoding='utf8'?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0"><channel><title>apparently.me.uk</title><link>http://apparently.me.uk/</link><atom:link href="http://apparently.me.uk/articles.rss" rel="self" type="application/rss+xml" /><language>en</language><item><title>Don't Panic! Handling Errors and Bugs in Go</title><atom:summary>Some different ways to model and handle errors and caller misbehavior in Go libraries</atom:summary><description>&lt;p&gt;Go is often characterized as a "small" language, with a carefully curated
+&lt;em&gt;minimal&lt;/em&gt; set of features that together allow for effective programming in
+the large. In particular, in most cases there is only one way to solve a
+particular problem — whether enforced by the language itself or by community
+norms — and so Go code in one project will tend to be very similar to Go code
+in another project.&lt;/p&gt;&lt;p&gt;To a newcomer, it can appear that error handling is an exception to this rule:
+Go seems to provide two different error-handling mechanisms, strongly encourage
+the use of one, but yet frequently use the other. These two mechanisms are
+explicitly returning error values (the most common and recommended approach)
+and the so-called "panic", which urgently aborts the running program, unwinding
+the stack in a similar way to structured exception handling in other languages.&lt;/p&gt;&lt;p&gt;While the use of &lt;tt&gt;panic&lt;/tt&gt; is clearly discouraged in various documentation,
+it is also frequently used in real-world Go libraries and within the standard
+library itself. This gives the impression that the situation is not as
+straightforward as the documentation makes it appear — that there are actually
+valid reasons to use &lt;tt&gt;panic&lt;/tt&gt; for error handling. The goal of this article is
+to take a pragmatic look at different ways Go libraries can and do handle
+errors of different types, and why each may be appropriate in certain
+situations.&lt;/p&gt;&lt;p&gt;This article is focused on error handling from the perspective of &lt;em&gt;API design&lt;/em&gt;.
+That is, on modeling errors in the exported API of a library to help callers of
+that library write a program that is robust in the face of errors. Within the
+implementation details of a library the tradeoffs are often different and the
+consequences of a particular decision tend to fall on the library author rather
+than on library users. Poor API design, on the other hand, is an externality
+felt by all &lt;em&gt;users&lt;/em&gt; of that API, with problems potentially repeated across
+dozens, hundreds, or thousands of other programs.&lt;/p&gt;&lt;p&gt;This is a subjective topic, with no absolute correct answer. You may disagree
+with some of the tradeoffs I propose here, and that is fine: you know better
+than I do what makes sense for your specific problem. The primary goal of this
+article is to introduce the decisions an API designer must make, not to dictate
+the answers to those questions.&lt;/p&gt;&lt;section id="bugs-vs-errors"&gt;&lt;h3&gt;Bugs vs. Errors&lt;/h3&gt;&lt;p&gt;Before we begin, it's worth discussing what an "error" actually is. There are
+lots of reasons why a program might fail to proceed as its author hoped, such
+as a required file being missing on disk, the network being misconfigured,
+power being lost on the computer where it is running, the CPU itself having
+design flaws...&lt;/p&gt;&lt;p&gt;In practice, it is folly to try to handle all possible failure modes in your
+average program. As always, programming is a game of tradeoffs and as
+API designers we must weigh a number of competing concerns: Will handling this
+error cause a significant degredation of performance in the happy path?
+Can this error be detected and handled once at the start of the program rather
+than repeatedly during the program? Is it possible to handle this error &lt;em&gt;at all&lt;/em&gt;?&lt;/p&gt;&lt;p&gt;The guidelines for review of library code submitted to the Go project itself
+(in standard libraries or in the "extension" libraries) seem at first glance
+to be very clear that &lt;tt&gt;panic&lt;/tt&gt; should never be used, in the section
+simply titled &lt;a href="https://github.com/golang/go/wiki/CodeReviewComments#dont-panic" target="_blank"&gt;Don't Panic&lt;/a&gt;:&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;See &lt;a href="https://golang.org/doc/effective_go.html#errors" target="_blank"&gt;https://golang.org/doc/effective_go.html#errors&lt;/a&gt;. Don't use panic for
+normal error handling. Use error and multiple return values.&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;But the devil is in the details here. What is "&lt;em&gt;normal&lt;/em&gt; error handling" anyway?
+Is there another &lt;em&gt;abnormal&lt;/em&gt; kind of error handling? For the sake of this
+article, I'm going to use some different terminology that I find easier to keep
+straight in my head: &lt;em&gt;bugs&lt;/em&gt; vs. &lt;em&gt;errors&lt;/em&gt;.&lt;/p&gt;&lt;p&gt;An error, broadly speaking, is a problem that arises in the environment of the
+program: the program would've behaved as desired if only that important file
+hadn't been deleted, or the user's ISP weren't currently having an outage.
+Inappropriate user input is another very common kind of error: users will
+often mistype command lines, use incorrect grammar in configuration files,
+etc. A high-quality program will respond to errors either by working around
+them in some way or by producing an actionable error message for the user
+of the program.&lt;/p&gt;&lt;p&gt;A bug, on the other hand, is a problem within the program itself. Perhaps a
+developer didn't read a library's API documentation closely enough and passed
+an unacceptable argument to a function. Perhaps a particular list can
+legitimately be empty but we forgot to handle that situation.&lt;/p&gt;&lt;p&gt;This binary distinction is a coarse approximation, but I think a
+helpful one because it is approximately along this line that many of our API
+design decisions in the following sections will fall.&lt;/p&gt;&lt;p&gt;There will always be some ambiguity between errors and bugs, but we can try to
+decide many cases by thinking about whose "responsibility" it is to deal with a
+particular problem: perhaps you are writing a library that expects
+already-validated values as input, and so you consider invalid values as a bug
+in the caller. That caller, on the other hand, may consider those invalid
+values to be an error caused by invalid user input. As designers of library
+APIs we must consider carefully the scope of our library, and design its API
+so that callers can understand what is expected. Ideally, we want the compiler
+to &lt;em&gt;check&lt;/em&gt; those assumptions.&lt;/p&gt;&lt;/section&gt;&lt;section id="input-processing-and-output"&gt;&lt;h3&gt;Input, Processing, and Output&lt;/h3&gt;&lt;p&gt;Another important consideration in software design is dealing with input
+and output. Many programs will begin by gathering outside data to operate on,
+and will end by emitting result data.&lt;/p&gt;&lt;p&gt;With "errors" defined as problems originating outside the program, it follows
+that errors will be most common within these input and output phases, as it is
+these which directly interact with the program's environment.&lt;/p&gt;&lt;p&gt;For example, the input phase might read a file from disk. There are lots of
+opportunities for error here: the file might not exist, the filesystem may be
+corrupt, the file may contain data that is not in a suitable format, it may
+contain &lt;em&gt;too much&lt;/em&gt; or &lt;em&gt;not enough&lt;/em&gt; data, and so on.&lt;/p&gt;&lt;p&gt;This leads to a general program structure as shown in the following example.&lt;/p&gt;&lt;p&gt;In this ideal situation, the developer of &lt;tt&gt;loader&lt;/tt&gt; has guaranteed in its
+API documentation that the &lt;tt&gt;data&lt;/tt&gt; return value will be valid and complete
+as long as the returned error is &lt;tt&gt;nil&lt;/tt&gt;.&lt;/p&gt;&lt;p&gt;This in turn allowed the developer of &lt;tt&gt;doer&lt;/tt&gt; to &lt;em&gt;assume&lt;/em&gt; that validity, and
+consider it a bug in the calling program if it receives an invalid &lt;tt&gt;data&lt;/tt&gt;
+value; it doesn't need to also return an error value. The &lt;tt&gt;writer&lt;/tt&gt; too can
+perhaps assume that &lt;tt&gt;result&lt;/tt&gt; is valid in some sense guaranteed by the
+&lt;tt&gt;doer&lt;/tt&gt; API documentation, but it must still be prepared to handle errors when
+creating the result file.&lt;/p&gt;&lt;p&gt;What if the caller instead constructs that &lt;tt&gt;data&lt;/tt&gt; value directly, and makes
+invalid such that &lt;tt&gt;doer.ProcessData&lt;/tt&gt; cannot produce a result?
+This function has no "normal error" channel with which to indicate that, and
+so its only recourse is to &lt;tt&gt;panic&lt;/tt&gt;. However, this is clearly a bug in the
+calling program: &lt;tt&gt;doer.ProcessData&lt;/tt&gt; mentioned in its documentation that it
+requires data in the form produced by &lt;tt&gt;loader.LoadDataFile&lt;/tt&gt;, and so
+constructing that object some other way is incorrect usage, regardless of
+what environment the program is running in.&lt;/p&gt;&lt;p&gt;As API designers we can help callers write correct programs by making careful
+use of the type system so that the compiler can detect some kinds of
+incorrect usage:&lt;/p&gt;&lt;p&gt;Depending on how &lt;tt&gt;doer.Data&lt;/tt&gt; is specified, it may still be &lt;em&gt;possible&lt;/em&gt; for
+a calling program to construct an incorrect value, but our use of a specialized
+type for the data helps the developer of the calling program to understand
+how to correctly connect these different components.&lt;/p&gt;&lt;p&gt;In this situation, it is reasonable to use &lt;tt&gt;panic&lt;/tt&gt; to respond to incorrect
+input in &lt;tt&gt;doer.ProcessData&lt;/tt&gt; because the only resolution to the problem is to
+correct the calling program, not to adjust the program's environment.
+The decision to use &lt;tt&gt;panic&lt;/tt&gt; here is a tradeoff: since incorrect usage of
+this function is a bug rather than an error, we choose to carefully design the
+API to make this situation unlikely, which avoids placing an error-handling
+burden on correctly-implemented programs, often making the processing phase
+more readable.&lt;/p&gt;&lt;p&gt;We can see this tradeoff at play within the language itself: an out-of-bounds
+access to an array or slice is signalled via &lt;tt&gt;panic&lt;/tt&gt;, rather than explicit
+error values, because handling these errors with explicit control flow would
+render many correct programs unreadable by introducing branches that can never
+be visited.&lt;/p&gt;&lt;p&gt;This leads to a rule of thumb: always use error values when processing input
+and producing output, since normal errors are most common in these phases.
+Use &lt;tt&gt;panic&lt;/tt&gt; sparingly to signal program bugs in the main processing phase,
+along with careful API design to help callers avoid them, when the goal is to
+reduce error handling complexity in the processing phase of the calling program.&lt;/p&gt;&lt;p&gt;The remaining sections of this article are refinements of and guidelines for
+this high-level rule.&lt;/p&gt;&lt;/section&gt;&lt;section id="know-your-audience"&gt;&lt;h3&gt;Know Your Audience&lt;/h3&gt;&lt;p&gt;When a problem is detected, who is expected to fix it? What does that person
+need to know to make progress?&lt;/p&gt;&lt;p&gt;A &lt;tt&gt;panic&lt;/tt&gt; is always directed at the developer of the calling program, and
+never at the end-user. In the event that an end-user &lt;em&gt;does&lt;/em&gt; see a panic message,
+the user's only recourse is to contact the software developer for a corrected
+version of the program. Because of this, the default panic behavior includes
+a detailed stack trace for each active goroutine to help the developer identify
+the precise location where the problem was detected.&lt;/p&gt;&lt;p&gt;Conversely, &lt;tt&gt;panic&lt;/tt&gt; is never an appropriate mechanism for messaging to the
+end-user. Problems with the environment — missing files, incorrect files,
+broken network connectivity, etc — can usually &lt;em&gt;not&lt;/em&gt; be addressed by changes
+to the program, and so these problems should be reported via error values.&lt;/p&gt;&lt;p&gt;This often leads to a different problem: error messages at the wrong level
+of abstraction. The worst examples of this come when errors arise deep in
+a call stack and intermediate functions simply pass them through, rather than
+handling them directly. For example, consider this program that is parsing
+some JSON input, presumably as part of a larger input-processing stage:&lt;/p&gt;&lt;p&gt;If the sequence of bytes given in &lt;tt&gt;buf&lt;/tt&gt; is &lt;em&gt;not&lt;/em&gt; valid JSON, the error
+message from the JSON library will be returned directly to the caller.
+If &lt;tt&gt;buf&lt;/tt&gt; is an empty byte slice, for example, the JSON parser may attempt
+to read and return &lt;tt&gt;io.EOF&lt;/tt&gt; as its error.&lt;/p&gt;&lt;p&gt;If no other function in the call stack handles this error, it is likely to
+surface to the end user like this:&lt;/p&gt;&lt;pre class='terminal'&gt;$ awesome-program
+EOF&lt;/pre&gt;&lt;p&gt;Not particularly helpful! The end-user may not even be aware that a file was
+being read and parsed as JSON here. An error return value from a function is,
+in effect, still a message to the direct caller of a function: even though it
+may be describing a more general environmental problem, it is often doing so
+with context and vocabulary common only between that caller and calleee.&lt;/p&gt;&lt;p&gt;Go's JSON library knows that its caller is trying to parse JSON, but it doesn't
+know &lt;em&gt;why&lt;/em&gt;. The caller presumably knows, and so it's the caller's responsibility
+to interpret and translate the error, re-framing the problem in a way
+that makes sense to &lt;em&gt;its&lt;/em&gt; caller, and so on until eventually the caller is the
+end user themselves.&lt;/p&gt;&lt;p&gt;By structuring a program or sub-program into separate input, processing, and
+output phases, this error translation process can be simplified: the call
+stack stays relatively shallow (the "processing" functions are not in turn
+calling parsers, for example) and at each phase the program is attempting to
+acheive a specific goal which can add important context to the error messages
+eventually returned to the user.&lt;/p&gt;&lt;p&gt;However we achieve it, it's always important for our programs to produce error
+messages that are understandable by their intended audience, with all of the
+context they need to understand and address the problem.&lt;/p&gt;&lt;/section&gt;&lt;section id="state-your-intentions"&gt;&lt;h3&gt;State Your Intentions&lt;/h3&gt;&lt;p&gt;As API designers, our responsibility is to design an API that is easy to use
+correctly. Compile-time type checks are one tool in the API designer's toolbox,
+but are not a panacea. Go's type system is intentionally simple, and so it's
+not possible in practice to model all real-world expectations so that they can
+be checked by the compiler.&lt;/p&gt;&lt;p&gt;Another important tool in API design is &lt;em&gt;idiom&lt;/em&gt;. As developers gain experience
+with a variety of different libraries, they develop a mental model for certain
+API design approaches that appear repeatedly. A very important idiom in Go is
+that of returning error values: unless otherwise stated, experienced Go
+developers will expect that if a function returns a non-nil &lt;tt&gt;error&lt;/tt&gt; then
+any other return values should be assumed invalid.&lt;/p&gt;&lt;p&gt;When an API design steps away from common idiom, developers are likely to use
+it incorrectly. Sometimes deviations from idiom are warranted though, since
+each situation is unique.&lt;/p&gt;&lt;p&gt;When decisions in an API design cannot be modelled as type checks and step
+outside of common idiom, API documentation is our fallback. Go has a simple
+convention for documenting the intended contracts of functions using comments,
+which are rendered by the GoDoc tool.&lt;/p&gt;&lt;p&gt;&lt;strong&gt;A panic is never idiomatic&lt;/strong&gt;, and therefore intentional panic situations
+should always be mentioned in documentation. Consider the standard &lt;tt&gt;reflect&lt;/tt&gt;
+package for example: many methods of &lt;tt&gt;Value&lt;/tt&gt; use panics to signal incorrect
+usage by the caller, but crucially they all also carefully &lt;em&gt;document&lt;/em&gt; the
+correct usage and the consequences of violating it:&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;&lt;tt&gt;Bool&lt;/tt&gt; returns &lt;tt&gt;v&lt;/tt&gt;'s underlying value. It panics if &lt;tt&gt;v&lt;/tt&gt;'s kind is not &lt;tt&gt;Bool&lt;/tt&gt;.&lt;/p&gt;&lt;p&gt;&lt;tt&gt;Bytes&lt;/tt&gt; returns &lt;tt&gt;v&lt;/tt&gt;'s underlying value. It panics if &lt;tt&gt;v&lt;/tt&gt;'s underlying value is not a slice of bytes.&lt;/p&gt;&lt;p&gt;&lt;tt&gt;Interface&lt;/tt&gt; returns &lt;tt&gt;v&lt;/tt&gt;'s current value as an &lt;tt&gt;interface{}&lt;/tt&gt;. It panics if the Value
+was obtained by accessing unexported struct fields.&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;With that said, I would be remiss not to mention &lt;a href="http://www.hyrumslaw.com/" target="_blank"&gt;Hyrum's Law&lt;/a&gt;:
+to mitigate this, it's best for any requirements in your documentation to be
+backed up by specific checks in code so that correct usage can emerge from
+trial and error as well as from careful reading of the documentation.&lt;/p&gt;&lt;/section&gt;&lt;section id="help-callers-to-succeed"&gt;&lt;h3&gt;Help Callers to Succeed&lt;/h3&gt;&lt;p&gt;When an API designer decides to consider a particular problem a bug and respond
+to it with a panic, they can improve ergonomics (and thus encourage safe
+behavior) by providing convenient patterns of correct usage.&lt;/p&gt;&lt;p&gt;For example, in the previous section we saw that Go's own &lt;tt&gt;reflect&lt;/tt&gt; package
+has a number of methods that panic under incorrect usage. Some have relatively
+simple definitions of correct usage, such as &lt;tt&gt;Value.Bool&lt;/tt&gt; which works only
+for bool values. Others are more complex, such as &lt;tt&gt;Value.Interface&lt;/tt&gt; which
+panics "if the value was obtained by accessing unexported struct fields".&lt;/p&gt;&lt;p&gt;Since a particular portion of a program may not &lt;em&gt;know&lt;/em&gt; how a given value was
+obtained, the package also offers &lt;tt&gt;Value.CanInterface&lt;/tt&gt;, which returns true
+only if &lt;tt&gt;Value.Interface&lt;/tt&gt; could be called on the same value without a panic.&lt;/p&gt;&lt;p&gt;This combination of methods is optimizing for a presumed common case where
+a &lt;tt&gt;reflect.Value&lt;/tt&gt; is both obtained and processed within the same component,
+and thus that component can "know" that it obtained the value in a way that
+allows &lt;tt&gt;Value.Interface&lt;/tt&gt; to succeed, but &lt;em&gt;allowing&lt;/em&gt; for a less-common
+situation where some fallback behavior or explicit error handling is needed:&lt;/p&gt;&lt;/section&gt;&lt;section id="a-real-example"&gt;&lt;h3&gt;A Real Example&lt;/h3&gt;&lt;p&gt;So far we've mainly explored hypotheticals, aside from a brief look at some
+aspects of the built-in &lt;tt&gt;reflect&lt;/tt&gt; library. To put these ideas in perspective,
+I'd like to use an API of my own design which attempts to navigate all of these
+tradeoffs.&lt;/p&gt;&lt;p&gt;My library &lt;a href="https://github.com/zclconf/go-cty" target="_blank"&gt;cty&lt;/a&gt; models types and values
+for applications that need to deal with data that can't be statically typed
+in the host program, such as data coming from arbitrary input files (e.g. JSON)
+or whose structure is defined by a separate plugin process.&lt;/p&gt;&lt;p&gt;I created it in response to a sequence of bugs in another program that were
+the result of working directly with &lt;tt&gt;interface{}&lt;/tt&gt; values as their dynamic
+value representation, but yet expecting only a subset of values of that type.&lt;/p&gt;&lt;p&gt;For example, it is common for applications working with JSON to use
+&lt;tt&gt;encoding/json&lt;/tt&gt; to unmarshal an arbitrary structure into an &lt;tt&gt;interface{}&lt;/tt&gt;
+value and then use type assertions or reflection to work with that. The JSON
+library is constrained to only produce a specific subset of Go types that
+correspond approximately with JSON's own data types, but once these values pass
+into the larger program they may be interpreted by code with a different set
+of expectations, or may be mutated to include types that &lt;em&gt;cannot&lt;/em&gt; be
+re-serialized as JSON later.&lt;/p&gt;&lt;p&gt;&lt;tt&gt;cty&lt;/tt&gt;, then, essentially establishes a subset of possible types and values
+and aims to ensure that all of the documented invariants for those types and
+values are preserved as the values pass through a program. Whereas passing
+around &lt;tt&gt;interface{}&lt;/tt&gt; values relies on convention and good behavior, &lt;tt&gt;cty&lt;/tt&gt;
+enforces correct behavior through its API.&lt;/p&gt;&lt;p&gt;Working with dynamic data types creates a lot more potential runtime problems,
+and raises lots of design questions around which problems are errors vs. bugs,
+and so handling of runtime problems in &lt;tt&gt;cty&lt;/tt&gt; raised some interesting design
+questions.&lt;/p&gt;&lt;p&gt;&lt;tt&gt;cty&lt;/tt&gt; follows the "Input, Processing, and Output" model I described in an
+earlier section.
+&lt;a href="https://godoc.org/github.com/zclconf/go-cty/cty/json" target="_blank"&gt;The JSON package&lt;/a&gt;
+within &lt;tt&gt;cty&lt;/tt&gt; (which is separate from Go's own) is one example of both
+input and output, converting byte buffers containing JSON syntax into
+values and vice-versa. The functions of this package return error values,
+and following my "Know Your Audience" principle &lt;tt&gt;Unmarshal&lt;/tt&gt; aims to return
+error messages that should make sense to the person who wrote the JSON input.&lt;/p&gt;&lt;p&gt;Once a program has obtained values of type &lt;tt&gt;cty.Value&lt;/tt&gt; or &lt;tt&gt;cty.Type&lt;/tt&gt;,
+the API design switches to treating incorrect arguments as caller bugs rather
+than errors. This optimizes for ergonomic use by correct programs that have
+performed any necessary validation or type checking ahead of processing,
+as we can see in the following (contrived) example:&lt;/p&gt;&lt;p&gt;The &lt;tt&gt;cty.Value.AsValueSlice&lt;/tt&gt; and &lt;tt&gt;cty.Value.Add&lt;/tt&gt; methods used here are
+designed to assume validation was already performed during input and so will
+panic if their expectations are not met in order to reduce error-handling
+"noise" in the calling program. This is reflected in their documentation:&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;&lt;tt&gt;Add&lt;/tt&gt; returns the sum of the receiver and the given other value. Both
+values must be numbers; this method will panic if not.&lt;/p&gt;&lt;p&gt;&lt;tt&gt;AsValueSlice&lt;/tt&gt; returns a &lt;tt&gt;[]cty.Value&lt;/tt&gt; representation of a non-null,
+non-unknown value of any type that &lt;tt&gt;CanIterateElements&lt;/tt&gt;, or panics if
+called on any other value.&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;In the latter case, we see an example of &lt;em&gt;helping callers to succeed&lt;/em&gt;: the
+definition of what is iterable is complicated, and so &lt;tt&gt;cty&lt;/tt&gt; also offers a
+method &lt;tt&gt;CanIterateElements&lt;/tt&gt; so that a program that &lt;em&gt;cannot&lt;/em&gt; assume a
+particular type can instead succinctly detect that and handle it, avoiding the
+panic.&lt;/p&gt;&lt;p&gt;It is important to note that this design doesn't &lt;em&gt;prevent&lt;/em&gt; a program from
+panicking. It is possible to use the library incorrectly by failing to
+guarantee the correct type before calling &lt;tt&gt;AsValueSlice&lt;/tt&gt;. The design tradeoff
+here is to provide convenient functions to ensure user input is valid early in
+the program, allowing for more direct code (with fewer conditional branches)
+in the "middle" of the program, which is likely to be the most complex part of
+the calling program and where readability is most important.&lt;/p&gt;&lt;p&gt;In programs like the above where the expected structure is known at compile
+time and it is only the values that vary, &lt;tt&gt;cty&lt;/tt&gt; also allows a different
+approach of converting directly to specific native Go types during the input
+phase, allowing the Go compiler to ensure correctness:&lt;/p&gt;&lt;p&gt;In this case we can do even more of the validation up front, and so the rest
+of the program need not worry about type-related panics at all. It may still
+have &lt;em&gt;other&lt;/em&gt; panics to worry about, of course!&lt;/p&gt;&lt;p&gt;The API design of &lt;tt&gt;cty&lt;/tt&gt; is not perfect by any means. In practical use I've
+found that it's easy for callers to allow null values in input but forget to
+handle them later: this is actually true of the first &lt;tt&gt;cty&lt;/tt&gt; example above —
+it would panic if given &lt;tt&gt;[null]&lt;/tt&gt; as input — and yet only an expert user of
+this library would spot that bug, and it is unfortunately a case likely to be
+missed during testing. Although it's an error on the user's part to provide
+&lt;tt&gt;null&lt;/tt&gt;, it's a bug in the program that it isn't handled gracefully. (The
+second example actually fixes this by decoding into a Go type that cannot be
+&lt;tt&gt;nil&lt;/tt&gt;, but that fix is by luck more than by care in this case.)&lt;/p&gt;&lt;/section&gt;&lt;section id="do-panic"&gt;&lt;h3&gt;&lt;em&gt;Do&lt;/em&gt; Panic?&lt;/h3&gt;&lt;p&gt;As we've seen in previous sections, while returning error values is the primary
+way to handle errors in a Go library, there are also some situations where a
+panic can be appropriate in conjunction with &lt;em&gt;other&lt;/em&gt; design work to create an
+API that is ergonomic and easy to use correctly.&lt;/p&gt;&lt;p&gt;Through thoughtful API design, we can reduce the cognitive overhead of error
+handling and improve readability by separating the concern of fraught
+interactions with the environment from the more predictable business of
+computation.&lt;/p&gt;&lt;p&gt;On the other hand, mistakes in API design — as with the modelling of &lt;tt&gt;null&lt;/tt&gt;
+in my library &lt;tt&gt;cty&lt;/tt&gt; — can create traps where users of your library can
+readily create incorrect programs, leading to crashes.&lt;/p&gt;&lt;p&gt;The decision of whether a particular problem is an error or a bug is always
+contextual and subjective: it is one of the many tradeoffs we must make
+when designing the API of a library and, in a broader sense, the overall
+architecture of a program.&lt;/p&gt;&lt;p&gt;The suggestions in this article can be summed up with an API design truism:
+good API design &lt;em&gt;encourages&lt;/em&gt; correct usage, through careful application of
+language features, idiom, and documentation. Poor usage or over-usage of error
+values in an API will discourage callers from handling those errors carefully
+due to the increase in code complexity, while poor usage of &lt;tt&gt;panic&lt;/tt&gt; will lead
+to software unreliability.&lt;/p&gt;&lt;p&gt;I hope this article will equip the reader with a good set of questions to ask
+when designing APIs, and that even if you disagree with some of my conclusions
+here — which I expect and welcome — you can do so knowingly, having considered
+all of the available options and their effects.&lt;/p&gt;&lt;/section&gt;</description><link>http://apparently.me.uk/go-api-panic-or-error/</link><guid>http://apparently.me.uk/go-api-panic-or-error/</guid><pubDate>Sat, 08 Sep 2018 00:00:00 +0000</pubDate><dc:creator>Martin Atkins</dc:creator></item><item><title>Terraform Environment+Application Design Pattern</title><atom:summary>A design pattern for managing shared infrastructure and application deployment using Hashicorp Terraform</atom:summary><description>&lt;p&gt;Hashicorp's &lt;a href="https://terraform.io/" target="_blank"&gt;Terraform&lt;/a&gt; is a powerful tool for describing as code a set of
+infrastructure and then safely creating and making changes to that
+infrastructure over time.&lt;/p&gt;&lt;p&gt;The key benefit of Terraform is that it is able to describe relationships
+between objects across many different systems and levels of abstraction,
+using the result of creating one object to define the configuration for
+another. As well as reducing maintenence burden as things change, this also
+helps human maintainers to understand how objects relate to one another,
+helping to turn a sea of infrastructure spread across many systems into a
+well-understood, version-controlled dependency graph.&lt;/p&gt;&lt;p&gt;&lt;a href="https://www.terraform.io/intro/getting-started/install.html" target="_blank"&gt;Terraform's Getting Started guide&lt;/a&gt; covers basic usage of Terraform,
+including how to describe a simple set of resources in a single configuration
+and create, update and destroy those resources. This article describes a more
+complex use of Terraform for managing a large system consisting of several
+different &lt;em&gt;applications&lt;/em&gt; that use a mixture of shared and dedicated
+infrastructure, deployed in two or more separate &lt;em&gt;environments&lt;/em&gt; that allow for
+changes to be staged before they are released to production.&lt;/p&gt;&lt;p&gt;Due to the two major components involved, I call this (unimaginitively!)
+&lt;em&gt;the Environment+Application Pattern&lt;/em&gt;, or &lt;strong&gt;the E+A Pattern&lt;/strong&gt; for short.&lt;/p&gt;&lt;ol class='parts'&gt;&lt;li&gt;&lt;a href='overview.html'&gt;Part 1: Overview and Definitions&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href='creating-environments.html'&gt;Part 2: Creating Environments&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href='per-application-configuration.html'&gt;Part 3: Per-application Configuration&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href='join-environment-module.html'&gt;Part 4: The "Join Environment" Module&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href='conclusion.html'&gt;Part 5: Conclusion&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href='bonus-patterns.html'&gt;Part 6: Bonus Patterns&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;&lt;aside class='note'&gt;&lt;p&gt;I wrote this series of articles when I worked at &lt;a href="https://www.saymedia.com/" target="_blank"&gt;Say Media&lt;/a&gt;, and it
+describes a generalized version of the Terraform design pattern used there.
+I now work at Hashicorp on Terraform itself.&lt;/p&gt;&lt;p&gt;This article is not an official opinion of either Say Media &lt;em&gt;or&lt;/em&gt; Hashicorp,
+and in particular should not be taken as an official recommendation from
+the Terraform team.&lt;/p&gt;&lt;/aside&gt;</description><link>http://apparently.me.uk/terraform-environment-application-pattern/</link><guid>http://apparently.me.uk/terraform-environment-application-pattern/</guid><pubDate>Sat, 18 Feb 2017 00:00:00 +0000</pubDate><dc:creator>Martin Atkins</dc:creator></item><item><title>Running a TLS CA with Terraform</title><atom:summary>Using Hashicorp Terraform to build and run a small, in-house certificate authority</atom:summary><description>&lt;p&gt;Modern datacenter security best-practices call for us to use TLS within our
+infrastructure, as a "defense in depth" approach to reducing the impact of
+intrusions. But managing TLS certificates for this usually requires running
+an in-house certificate authority, which can be difficult to set up and
+tedious to run.&lt;/p&gt;&lt;p&gt;This article shows how &lt;a href="https://terraform.io/" target="_blank"&gt;Hashicorp Terraform&lt;/a&gt;, a tool normally associated
+with infrastructure provisioning, can be used to create and manage a small
+in-house certificate authority with minimal hassle. It also shows how such
+an approach might be used with &lt;a href="https://vaultproject.io/" target="_blank"&gt;Hashicorp Vault&lt;/a&gt; to establish a CA with
+which to configure its TLS certificates and PKI backend.&lt;/p&gt;&lt;section id="anatomy-of-a-certificate-authority"&gt;&lt;h3&gt;Anatomy of a Certificate Authority&lt;/h3&gt;&lt;p&gt;&lt;em&gt;Certificate authority&lt;/em&gt; most often refers to a company or other organization
+that issues TLS certificates that are trusted by web browsers for use on
+public-facing websites. However, for internal uses such as infrastructure
+security it is not usually necessary to have publicly-trusted certificates,
+and so one can run a &lt;em&gt;private&lt;/em&gt; certificate authority within a company that
+is trusted only by infrastructure components within that company.&lt;/p&gt;&lt;p&gt;A certificate authority is essentially a set of certificate-issuing procedures,
+making use of a well-protected private key (known only to those who are able
+to issue certificates) along with a &lt;em&gt;root certificate&lt;/em&gt; that can be configured
+as trusted by client software that wishes to verify issued certificates.&lt;/p&gt;&lt;p&gt;The authority produces &lt;em&gt;child certificates&lt;/em&gt; that are signed with the
+authority's private key and usable by servers and clients holding a specific
+other private key. An authority may also create other subordinate CAs, which
+can themselves issue certificates and establish a &lt;em&gt;chain of trust&lt;/em&gt;.&lt;/p&gt;&lt;p&gt;The sections that follow will describe how to use Terraform to create the
+resources necessary for a CA, and then some procedures for using Terraform to
+issue certificates on behalf of that CA.&lt;/p&gt;&lt;/section&gt;&lt;section id="why-use-terraform"&gt;&lt;h3&gt;Why use Terraform?&lt;/h3&gt;&lt;p&gt;Those running a private CA will usually use the &lt;tt&gt;openssl&lt;/tt&gt; command line tool
+or some wrapper around it such as &lt;tt&gt;easyrsa&lt;/tt&gt;. When running a CA in this manner
+there are many different (and often cryptic) commands to learn and many small
+files to keep track of, which creates a steep learning curve and requires
+complex procedures to keep track of the CA state in a secure manner.&lt;/p&gt;&lt;p&gt;Terraform has built into it &lt;a href="https://www.terraform.io/docs/providers/tls/index.html" target="_blank"&gt;a TLS provider&lt;/a&gt; that contains the TLS primitives
+necessary to run a simple certificate authority. Terraform's TLS support is in
+turn based on the crypto libraries that come with
+&lt;a href="https://golang.org/" target="_blank"&gt;the Go programming language&lt;/a&gt;, which are also used by &lt;a href="https://vaultproject.io/" target="_blank"&gt;Hashicorp Vault&lt;/a&gt; for
+much of its cryptography work.&lt;/p&gt;&lt;p&gt;Terraform has two characteristics that make it more convenient for this purpose
+than typical CLI-based tooling: its declarative configuration language
+provides a straightforward way to describe the certificates and other resources
+required, and its "state" concept gives us a single artifact that retains
+all of the necessary state for the CA, allowing us to more easily establish
+processes for securely storing this data.&lt;/p&gt;&lt;p&gt;The configuration can safely be stored in a version control repository for easy
+collaboration.&lt;/p&gt;&lt;p&gt;It is important to handle the state file with care: an organization
+following the process described in the following sections will create a
+state file which, if obtained by an attacker, would undermine the entire CA
+by giving that attacker the ability to arbitarily issue trusted certificates.
+Those who run the CA must define processes for how and where the state file
+will be stored, how it can be obtained by CA operators in order to issue new
+certificates, etc. It may be desirable to run Terraform only on a specific
+trusted, hardened host when interacting with the CA, to prevent remnants of
+the state file from being left on-disk on various different computer systems.&lt;/p&gt;&lt;p&gt;This article presumes some familiarity with Terraform, and in particular
+familiarity with its general workflow.&lt;/p&gt;&lt;/section&gt;&lt;section id="establishing-the-root-certificate"&gt;&lt;h3&gt;Establishing the Root Certificate&lt;/h3&gt;&lt;p&gt;A &lt;em&gt;root&lt;/em&gt; certificate is one that stands on its own and is not vouched for by
+any other certificate. Unless your CA is subordinate to another (an idea we'll
+explore more later), your CA will be built around a root certificate that
+must be explicitly trusted by any systems that will accept the certificates
+issued by your CA.&lt;/p&gt;&lt;p&gt;Another way to refer to a certificate that is not vouched for by another is
+the idea of a &lt;em&gt;self-signed&lt;/em&gt; certificate. This is what it sounds like: the
+certificate "vouches for" itself, claiming both to own and to be verified by
+the same private key.&lt;/p&gt;&lt;p&gt;To produce a self-signed certificate for our CA we must first generate our
+CA's private key, which will then be used to sign the certificate. A Terraform
+config file &lt;tt&gt;root.tf&lt;/tt&gt; can do this as follows:&lt;/p&gt;&lt;p&gt;We first generate a private key, and then use that key to produce a self-signed
+certificate. The content of &lt;tt&gt;subject&lt;/tt&gt; doesn't matter that much for an internal
+CA, but it's important to specify &lt;tt&gt;is_ca_certificate&lt;/tt&gt; and the &lt;tt&gt;cert_signing&lt;/tt&gt;
+allowed use as shown here, or else clients will not accept certificates that
+descend from this one.&lt;/p&gt;&lt;p&gt;The &lt;tt&gt;validity_period_hours&lt;/tt&gt; argument defines when this certificate will
+expire. In this example we set this to three years, but you should consider
+your own context when choosing an appropriate value to use. Any child
+certificates must expire before the root expires.&lt;/p&gt;&lt;p&gt;Terraform's &lt;tt&gt;early_renewal_hours&lt;/tt&gt; attribute will cause Terraform to produce
+a new root certificate at some point before the current one has expired. Here
+we have set this to one year. Terraform's built-in dependency management will
+cause all issued certificates to be re-created automatically once a replacement
+root is established, allowing the CA administrators to re-issue them and get
+all systems updated before the original certificates become invalid.&lt;/p&gt;&lt;p&gt;Running &lt;tt&gt;terraform apply&lt;/tt&gt; against this configuration will cause Terraform
+to generate the private key and the certificate and write both of them into
+the state file. &lt;tt&gt;terraform show&lt;/tt&gt; will display all of the attributes of these
+resources, including the &lt;tt&gt;cert_pem&lt;/tt&gt; attribute of the self-signed certificate,
+whose value can be installed on other systems to establish trust of the CA.&lt;/p&gt;&lt;/section&gt;&lt;section id="issuing-a-certificate"&gt;&lt;h3&gt;Issuing a Certificate&lt;/h3&gt;&lt;p&gt;The usual workflow for a CA consists of individuals or departments outside of
+the CA team requesting certificates using &lt;em&gt;certificate signing requests&lt;/em&gt;, or
+&lt;em&gt;CSRs&lt;/em&gt;.&lt;/p&gt;&lt;p&gt;A CSR is a machine-readable description of the desired certificate, signed
+by the private key held by the party that will use the certificate. The job
+of the CA is to verify that the CSR is trustworthy and correct, and then issue
+a certificate vouching for the given information.&lt;/p&gt;&lt;p&gt;The teams requesting certificates would likely &lt;em&gt;not&lt;/em&gt; be using Terraform, and
+will probably generate a CSR using some other workflow, such as the following
+&lt;tt&gt;openssl&lt;/tt&gt; commands:&lt;/p&gt;&lt;pre class='terminal'&gt;$ openssl genrsa -out example.com.key 2048
+Generating RSA private key, 2048 bit long modulus
+.........+++
+.........................................................................+++
+e is 65537 (0x10001)
+
+$ openssl openssl req -new -sha256 -key example.com.key -out example.com.csr
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+-----
+Country Name (2 letter code) [AU]:US
+State or Province Name (full name) [Some-State]:CA
+Locality Name (eg, city) []:Pirate Harbor
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:Example, Inc.
+Organizational Unit Name (eg, section) []:IT Department
+Common Name (e.g. server FQDN or YOUR name) []:intranet.example.com
+Email Address []:it@example.com&lt;/pre&gt;&lt;p&gt;Our hypothetical IT department would send &lt;tt&gt;example.com.csr&lt;/tt&gt; (but &lt;em&gt;not&lt;/em&gt;
+&lt;tt&gt;example.com.key&lt;/tt&gt;) to the CA operators. Those on the CA team would then
+inspect the CSR and see if the details within appear correct and compliant
+with organizational standards:&lt;/p&gt;&lt;pre class='terminal'&gt;$ openssl req -text -noout -verify -in csrs/example.com.pem
+verify OK
+Certificate Request:
+    Data:
+        Version: 0 (0x0)
+        Subject: C=US, ST=CA, L=Pirate Harbor, O=Example, Inc., OU=IT Department, CN=intranet.example.com/emailAddress=it@example.com
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (2048 bit)
+                Modulus:
+                    00:a7:b6:65:d6:c7:e0:02:2e:6a:d2:d4:a3:3f:fc:
+                    bd:1f:85:85:af:8b:1e:35:f7:82:bd:83:b5:31:6b:
+                    4b:62:4d:64:f4:07:cc:2f:c1:fd:c3:8b:47:41:22:
+                    a6:f1:bf:2a:4f:8a:f8:6f:c7:7c:55:b6:d3:03:5d:
+                    e6:1a:25:f2:64:bb:b2:30:d2:cd:ab:d0:4d:be:17:
+                    d6:41:86:20:1c:bf:70:c2:f3:5f:58:fe:d4:49:85:
+                    c7:ae:b3:29:6c:04:1c:44:80:9b:fc:19:24:b1:2d:
+                    ab:6a:9e:d8:99:aa:a9:51:ee:29:02:95:da:b7:38:
+                    98:78:73:37:19:28:e6:dc:e0:94:6f:b9:75:3c:d5:
+                    ee:45:b7:87:b9:39:b8:62:86:0c:fa:71:e2:71:49:
+                    62:04:a5:a6:0b:da:6e:99:90:c4:e3:2b:cb:23:90:
+                    43:5b:d4:f3:fc:3d:66:b8:3f:18:d0:bd:ed:d0:dd:
+                    7d:6f:6e:4f:a6:da:3f:64:a8:5b:fd:18:06:90:34:
+                    96:a4:6c:70:b8:a7:99:e2:be:58:4f:57:8d:11:d8:
+                    f5:1c:0a:9d:17:be:04:d1:33:ed:26:26:b4:e2:c0:
+                    5e:e5:67:91:8c:9f:07:7f:f5:99:71:08:e6:f8:15:
+                    5e:4d:74:6f:9f:c1:92:25:87:fa:44:d5:cb:b2:19:
+                    2d:53
+                Exponent: 65537 (0x10001)
+        Attributes:
+            a0:00
+    Signature Algorithm: sha256WithRSAEncryption
+         11:78:db:dd:da:14:e6:bf:f8:85:d8:d8:5f:7d:e5:69:38:f4:
+         33:fb:d4:d5:09:a6:68:c2:a7:e0:03:56:93:0b:29:78:61:95:
+         76:09:aa:82:6d:5e:44:21:de:57:ce:1f:32:1e:4a:6c:30:0f:
+         18:ac:7b:22:04:e6:a0:55:da:a0:e8:98:9b:d0:62:c1:56:9f:
+         04:1d:6e:e0:e5:11:2d:3f:4e:a5:79:08:60:ee:a7:ba:ed:91:
+         a9:96:6d:23:93:bb:09:d1:01:5b:9e:cd:9e:93:9b:8e:3a:16:
+         a8:7c:f8:e4:36:e9:7f:60:ca:0d:38:df:89:a9:b3:ce:6a:8e:
+         05:95:31:53:69:c7:d6:8c:f9:b4:8a:c1:bc:70:2d:15:93:ce:
+         2d:e4:09:a0:55:30:23:d1:06:23:37:bf:5c:f4:49:f6:dc:44:
+         da:5b:fe:4d:54:16:55:80:d2:c0:65:f6:b1:0e:06:ee:30:4a:
+         e9:48:31:28:13:7f:8d:02:a0:ff:99:48:68:23:5a:68:fd:cf:
+         35:a4:a9:fb:99:28:18:d1:c8:87:79:44:08:a2:07:19:83:f7:
+         a8:e5:1b:62:fe:a7:4e:89:d7:57:79:cb:c1:05:e7:ea:86:28:
+         50:a4:b2:38:0c:97:f1:a0:99:03:3e:dc:12:d2:97:b2:df:e5:
+         3b:d4:45:9b&lt;/pre&gt;&lt;p&gt;Assuming everything looks good, the CSR file can be placed in a file within
+the configuration called (for example) &lt;tt&gt;csrs/example.com.pem&lt;/tt&gt; and the
+certificate itself can be issued through another Terraform resource block,
+in &lt;tt&gt;intranet.tf&lt;/tt&gt;:&lt;/p&gt;&lt;p&gt;This time we use the &lt;tt&gt;tls_locally_signed_cert&lt;/tt&gt; resource, which combines a
+certificate request with a CA certificate (and its associated key) in order
+to produce a descendent certificate.&lt;/p&gt;&lt;p&gt;The &lt;tt&gt;allowed_uses&lt;/tt&gt; keyword &lt;tt&gt;server_auth&lt;/tt&gt; means that this server can be
+presented by a server to a client, and used by the client to verify the
+server. This is the appropriate setting for a certificate that will be
+configured for a TLS server.&lt;/p&gt;&lt;p&gt;We set the validity period of the certificate to &lt;em&gt;two&lt;/em&gt; years. As noted earlier,
+this is required to be earlier than the CA certificate expiration, and so one
+must be careful to set this appropriately if a new certificate is issued toward
+the end of the life of the root certificate.&lt;/p&gt;&lt;p&gt;Now we can &lt;tt&gt;apply&lt;/tt&gt; to issue the certificate:&lt;/p&gt;&lt;pre class='terminal'&gt;$ terraform apply
+tls_private_key.root: Refreshing state... (ID: ...)
+tls_self_signed_cert.root: Refreshing state... (ID: ...)
+tls_locally_signed_cert.intranet: Creating...
+  allowed_uses.#:        "" =&amp;gt; "1"
+  allowed_uses.0:        "" =&amp;gt; "server_auth"
+  ca_cert_pem:           "" =&amp;gt; "444386791920640878cc460b7aeaddcb715c831f"
+  ca_key_algorithm:      "" =&amp;gt; "ECDSA"
+  ca_private_key_pem:    "" =&amp;gt; "5038895240aab6f181a150d1fae9b57689b1483e"
+  cert_pem:              "" =&amp;gt; "&amp;lt;computed&amp;gt;"
+  cert_request_pem:      "" =&amp;gt; "b051ed1d744c164461d860e74ff320b1aaf49e87"
+  early_renewal_hours:   "" =&amp;gt; "8760"
+  validity_end_time:     "" =&amp;gt; "&amp;lt;computed&amp;gt;"
+  validity_period_hours: "" =&amp;gt; "17520"
+  validity_start_time:   "" =&amp;gt; "&amp;lt;computed&amp;gt;"
+tls_locally_signed_cert.website: Creation complete
+
+Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
+
+$ terraform show
+...
+tls_locally_signed_cert.website:
+  id = 135470627697209310048898171923231502097
+  allowed_uses.# = 1
+  allowed_uses.0 = server_auth
+  ca_cert_pem = 444386791920640878cc460b7aeaddcb715c831f
+  ca_key_algorithm = ECDSA
+  ca_private_key_pem = 5038895240aab6f181a150d1fae9b57689b1483e
+  cert_pem = -----BEGIN CERTIFICATE-----
+  MIIDmjCCAvugAwIBAgIQZeqxn+/wwQfrlNBA0PFvETAKBggqhkjOPQQDBDCBwzEL
+  MAkGA1UEBhMCVVMxCzAJBgNVBAgTAkNBMRYwFAYDVQQHEw1QaXJhdGUgSGFyYm9y
+  MRkwFwYDVQQJExA1ODc5IENvdHRvbiBMaW5rMRMwEQYDVQQREwo5NTU1OS0xMjI3
+  MRUwEwYDVQQKEwxFeGFtcGxlLCBJbmMxLDAqBgNVBAsTI0RlcGFydG1lbnQgb2Yg
+  Q2VydGlmaWNhdGUgQXV0aG9yaXR5MRowGAYDVQQDExFFeGFtcGxlIEluYy4gUm9v
+  dDAeFw0xNjA5MTIwMDIxMzdaFw0xODA5MTIwMDIxMzdaMIGBMQswCQYDVQQGEwJV
+  UzELMAkGA1UECBMCQ0ExFjAUBgNVBAcTDVBpcmF0ZSBIYXJib3IxFjAUBgNVBAoT
+  DUV4YW1wbGUsIEluYy4xFjAUBgNVBAsTDUlUIERlcGFydG1lbnQxHTAbBgNVBAMT
+  FGludHJhbmV0LmV4YW1wbGUuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB
+  CgKCAQEAp7Zl1sfgAi5q0tSjP/y9H4WFr4seNfeCvYO1MWtLYk1k9AfML8H9w4tH
+  QSKm8b8qT4r4b8d8VbbTA13mGiXyZLuyMNLNq9BNvhfWQYYgHL9wwvNfWP7USYXH
+  rrMpbAQcRICb/BkksS2rap7YmaqpUe4pApXatziYeHM3GSjm3OCUb7l1PNXuRbeH
+  uTm4YoYM+nHicUliBKWmC9pumZDE4yvLI5BDW9Tz/D1muD8Y0L3t0N19b25Ppto/
+  ZKhb/RgGkDSWpGxwuKeZ4r5YT1eNEdj1HAqdF74E0TPtJia04sBe5WeRjJ8Hf/WZ
+  cQjm+BVeTXRvn8GSJYf6RNXLshktUwIDAQABo0YwRDATBgNVHSUEDDAKBggrBgEF
+  BQcDATAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFCve2v+DpZZ3Sgrn/pbH8xhi
+  N5DcMAoGCCqGSM49BAMEA4GMADCBiAJCAfBsc8zW82bzpPJac934PpxB+1axwMAF
+  1B8x3ojSePhW6RD4ukld/73bAHmdWRZOlIezqf2XeTQQM9tZZq739MimAkIAq50y
+  xJRdSNXGDbl/aq/ltWwfsv+m/hj16Npi48wAHqefi2VuS6ALjRzgCkH1OwWqxbi4
+  tjNXCtrWsvmiDgz9sI4=
+  -----END CERTIFICATE-----
+
+  cert_request_pem = b051ed1d744c164461d860e74ff320b1aaf49e87
+  early_renewal_hours = 8760
+  validity_end_time = 2018-09-11T17:21:37.024909783-07:00
+  validity_period_hours = 17520
+  validity_start_time = 2016-09-11T17:21:37.024909783-07:00&lt;/pre&gt;&lt;p&gt;The &lt;tt&gt;cert_pem&lt;/tt&gt; value here is what the CA operator would provide to the IT
+department, along with the CA certificate created earlier, so that they can
+configure this hypothetical Intranet server.&lt;/p&gt;&lt;/section&gt;&lt;section id="requesting-certificates-from-within-terraform"&gt;&lt;h3&gt;Requesting Certificates from within Terraform&lt;/h3&gt;&lt;p&gt;The previous section assumed that the requester of the certificate was
+distinct from the CA operations team, and presented a workflow supporting that
+situation. In a smaller team, it's very possible that the CA will be run by
+the same individuals that are configuring the rest of the infrastructure,
+and in that situation it might be appropriate to request and issue the
+certificates entirely within Terraform.&lt;/p&gt;&lt;p&gt;We can use the &lt;tt&gt;tls_cert_request&lt;/tt&gt; resource, along with some other resources
+we've already seen, to make Terraform orchestrate the request/issue process
+we described above, in a new file &lt;tt&gt;infrastructure.tf&lt;/tt&gt;:&lt;/p&gt;&lt;p&gt;Where before the private key and CSR were created using  subcommands,
+this time we use Terraform resources to achieve the same result. After a
+single &lt;tt&gt;terraform apply&lt;/tt&gt;, all of these resources will be created and the
+certificate's PEM serialization can be obtained from &lt;tt&gt;terraform show&lt;/tt&gt;
+as before.&lt;/p&gt;&lt;/section&gt;&lt;section id="extracting-certificates-to-standalone-files"&gt;&lt;h3&gt;Extracting Certificates to Standalone Files&lt;/h3&gt;&lt;p&gt;In the previous sections we saw how we can locate the &lt;tt&gt;cert_pem&lt;/tt&gt; attribute
+on our generated certificates in order to obtain the PEM-encoded certificate
+contents.&lt;/p&gt;&lt;p&gt;Most software expects to be provided keys and certificates each in their
+own separate on-disk file. It would be convenient to automatically extract
+these values into such files, and that is relatively easy to achieve since
+the Terraform state file is JSON-encoded and easy to consume from scripts.
+As part of the prototyping for this article, I wrote
+&lt;a href="https://gist.github.com/apparentlymart/0b136b4094cf7ef1919b39648ddd31c6" target="_blank"&gt;a Python script to extract the certificates&lt;/a&gt;, creating a directory for
+each distinct certificate name and placing files in here for the issued cert
+and the CA cert respectively.&lt;/p&gt;&lt;/section&gt;&lt;section id="setting-up-a-vault-server-with-a-tls-certificate"&gt;&lt;h3&gt;Setting up a Vault server with a TLS certificate&lt;/h3&gt;&lt;p&gt;&lt;a href="https://vaultproject.io/" target="_blank"&gt;Hashicorp Vault&lt;/a&gt; has been generally praised for striking a good compromise
+between security and usability. For many situations, it will do the right thing
+"out of the box", lowering the barrier to having reasonably-secure handling of
+secrets within network applications.&lt;/p&gt;&lt;p&gt;However, one big upset to this ease of getting started is the chicken-and-egg
+problem of needing to establish enough certificate infrastructure to issue
+a certificate for the Vault server itself to use, before there's a Vault server
+in which to store or generate the necessary secrets.&lt;/p&gt;&lt;p&gt;Through a Terraform config like our &lt;tt&gt;infrastructure.tf&lt;/tt&gt; example above, we can
+quickly produce and issue a server certificate and associated private key
+for Vault to use, and configure Vault clients to trust our CA certificate.
+The common name of this certificate must be the hostname at which clients
+will access the Vault server.&lt;/p&gt;&lt;p&gt;The &lt;tt&gt;listener&lt;/tt&gt; section of a Vault configuration file is where we will
+specify the paths to files containing the Vault server's private key and
+certificate:&lt;/p&gt;&lt;p&gt;Clients connecting to the Vault server will also need to trust the root
+CA certificate. How this is done unfortunately varies depending on the
+operating system; on Linux systems one of the following files is consulted for
+lists of trusted root CA certificates in PEM format:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;p&gt;&lt;tt&gt;/etc/ssl/certs/ca-certificates.crt&lt;/tt&gt;&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;&lt;tt&gt;/etc/pki/tls/certs/ca-bundle.crt&lt;/tt&gt;&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;&lt;tt&gt;/etc/ssl/ca-bundle.pem&lt;/tt&gt;&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;&lt;tt&gt;/etc/pki/tls/cacert.pem&lt;/tt&gt;&lt;/p&gt;&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;Alternatively, the &lt;tt&gt;VAULT_CACERT&lt;/tt&gt; environment variable can be set on the
+Vault process to explicitly specify the CA certificate that Vault should
+expect.&lt;/p&gt;&lt;/section&gt;&lt;section id="issuing-certificates-automatically-with-vault"&gt;&lt;h3&gt;Issuing Certificates Automatically with Vault&lt;/h3&gt;&lt;p&gt;Alongside the use of TLS for client-to-server communication, Vault also has
+&lt;a href="https://www.vaultproject.io/docs/secrets/pki/index.html" target="_blank"&gt;a secret backend that allows it to automatically issue TLS certificates&lt;/a&gt;
+using the same underlying cryptography code that Terraform uses to implement
+the resources we've seen so far.&lt;/p&gt;&lt;p&gt;This Vault feature can be used to automate the issuing of certificates to
+TLS clients and servers, so it can be set up once and then run largely without
+operator intervention as new applications join and leave the environment.
+This can be an effective way to enable mutual authentication between TLS
+clients and servers within a datacenter, which can be a step towards a
+"zero trust" architecture.&lt;/p&gt;&lt;p&gt;The recommended way to use this feature is to establish a root CA, as we've
+done earlier in this article, and then use it to establish an
+&lt;em&gt;intermediate CA&lt;/em&gt; within Vault. This means that Vault maintains its own CA
+that is subordinate to our root CA.&lt;/p&gt;&lt;p&gt;We can adapt our earlier &lt;tt&gt;infrastructure.tf&lt;/tt&gt; configuration to create a new
+signing certificate for Vault to use, but first we need to ask Vault to
+generate a certificate signing request. At this step, Vault generates a
+private key but does not expose it to the operator:&lt;/p&gt;&lt;pre class='terminal'&gt;$ vault mount pki
+Successfully mounted 'pki' at 'pki'!
+$ vault write /pki/intermediate/generate/internal common_name=vault-ca.example.com exclude_ca_from_sans=true
+Key Value
+csr -----BEGIN CERTIFICATE REQUEST-----
+MIICljCCAX4CAQAwHzEdMBsGA1UEAxMUdmF1bHQtY2EuZXhhbXBsZS5jb20wggEi
+MA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC7OjTpRfItq455zCKit3F98Wra
+vtSq0LjpQWMOBHQzG3OMrqdgAPlBLl38+8ey1j1f+GI15B5NeQhOwe2WqjlwFpzN
+xUcZPq40hghDMHycDAuClkDgv5J8vnTmA/mc8OdrwAlU9lHz0YR1hkq2jsgTRW1G
+9b3G3D0JvhVpCtLUj7CU6i8IiMeBWt/xI2uh4SNQL44jB5mVxV5mEBZ/ldhnC4kU
+hFJoIdVO/AGzKQrm1horssditPVH0KaMia72LGeb/OEe93b46AjBy2PX2mFQJssV
+pWvAvvo7XaJJ/Ox/mA717j4blTbx0Hkp6j2g7xGJJXQOmbWgoJ8OsUylSArVAgMB
+AAGgMjAwBgkqhkiG9w0BCQ4xIzAhMB8GA1UdEQQYMBaCFHZhdWx0LWNhLmV4YW1w
+bGUuY29tMA0GCSqGSIb3DQEBCwUAA4IBAQCvhAgfm9MlYFRlm/9FcWRitgxvOgkJ
+95qNByFshsrhRHoyWWpZjNPIqkzWEFTAMsTVV18TkEOSmZZgcmqi3TWg61EKLoTm
+LRLv1bAa+xUv6i55LZOkllgCKfWGxOynFBHpn2KvwfR9A7N5lEM8FPOhY+WtxpWE
+G7FUhZN1wyqpfdWIxdWgyi9djpuBBEGAsXWKKvMX7U3MDKYoBJ+PXzTtPnXChL8Y
+CbsrURvpKLsnM+zKPl991P9d9ubXsXl0yeOSoOglNd8lN/CeHMueXAqyyQS+lLV+
+drde2OSezqo/bBwFwtm8sw+kwZWuc+uLHm7He1kBfYxg2/Bpq38b6NBo
+-----END CERTIFICATE REQUEST-----&lt;/pre&gt;&lt;p&gt;This CSR block (with the &lt;tt&gt;csr&lt;/tt&gt; key name removed from the first line) can
+be placed at &lt;tt&gt;csrs/vault.pem&lt;/tt&gt; and then we can create &lt;tt&gt;vault.tf&lt;/tt&gt; to
+issue the certificate:&lt;/p&gt;&lt;p&gt;This time we again set &lt;tt&gt;is_ca_certificate&lt;/tt&gt; and allow &lt;tt&gt;cert_signing&lt;/tt&gt;, since
+this certificate will be used by Vault to issue further certificates.&lt;/p&gt;&lt;p&gt;After &lt;tt&gt;terraform apply&lt;/tt&gt;, we can extract the generated certificate, place
+it in a file called &lt;tt&gt;vault.crt&lt;/tt&gt; and complete setup by loading it into
+Vault:&lt;/p&gt;&lt;pre class='terminal'&gt;$ vault write /pki/intermediate/set-signed -certificate=@vault.crt&lt;/pre&gt;&lt;p&gt;See the Vault documentation on the PKI auth backend for more information
+on how this can be used to issue short-lived server and client certificates
+(and associated private keys) for applications to use.&lt;/p&gt;&lt;/section&gt;&lt;section id="terraform-ca-caveats"&gt;&lt;h3&gt;Terraform CA Caveats&lt;/h3&gt;&lt;p&gt;In addition to the earlier warning about the need to securely store the
+Terraform state containing the CA secrets, there are some other caveats to
+keep in mind when using Terraform as the basis of a certificate authority.&lt;/p&gt;&lt;p&gt;Certificates issued by Terraform will not specify the location of a
+&lt;em&gt;certificate revocation list&lt;/em&gt;, meaning that there is no ready mechanism to
+cancel any issued certificates in the event that they are compromised. It is
+therefore ideal to use Terraform only for the most foundational parts of the
+CA, which can be protected most carefully, and then use it to provision a
+system like Vault's PKI secret backend described above in order to
+delegate the more routine issuing of certificates to a more specialized tool.
+In this case, Terraform is just used to solve the chicken-and-egg problem in
+its initial configuration.&lt;/p&gt;&lt;p&gt;Additionally, a Terraform configuration with hundreds or thousands of resources
+is currently not especially performant, and will result in an oversize state
+file that may be hard to transmit and store securely. This is a further
+reason to limit Terraform's role to the initial setup, and delegate broader
+management tasks to a more appropriate system.&lt;/p&gt;&lt;/section&gt;&lt;section id="conclusion"&gt;&lt;h3&gt;Conclusion&lt;/h3&gt;&lt;p&gt;In this article we've seen how Terraform can be used to establish and operate
+a small certificate authority within an organization, and explored some
+practical situations where such a solution may be helpful.&lt;/p&gt;&lt;p&gt;As always with security and cryptography concerns, context is important and
+there is no "one size fits all" solution. Where possible I have tried to
+make my assumptions explicit, but when considering the techniques
+within this article, be sure to consider any regulatory or organizational
+constraints that may affect the applicability of this technique within your
+particular environment.&lt;/p&gt;&lt;/section&gt;</description><link>http://apparently.me.uk/terraform-certificate-authority/</link><guid>http://apparently.me.uk/terraform-certificate-authority/</guid><pubDate>Sun, 11 Sep 2016 00:00:00 +0000</pubDate><dc:creator>Martin Atkins</dc:creator></item><item><title>Padstone: Terraform for Software Builds</title><atom:summary>A prototype of using Terraform's core functionality for software builds.</atom:summary><description>&lt;p&gt;&lt;a href="http://packer.io/" target="_blank"&gt;Packer&lt;/a&gt; and &lt;a href="https://terraform.io/" target="_blank"&gt;Terraform&lt;/a&gt; are the products &lt;a href="https://hashicorp.com/" target="_blank"&gt;HashiCorp&lt;/a&gt; recommends for building and deploying
+applications in the modern datacenter, but these two tools have some differences and
+rough edges that mean they don't tessellate as well as they could. In this article
+I'll talk about a prototype I built that uses the core of Terraform to create a Packer
+replacement, creating a more flexible tool that has a much better story for integration
+with Terraform for deployment.&lt;/p&gt;&lt;section id="the-hashicorp-stack"&gt;&lt;h3&gt;The HashiCorp Stack&lt;/h3&gt;&lt;p&gt;Modern web applications are rarely composed of just a managed application server
+and a database, but are rather composed of a wide array of different services: CDNs
+and load balancers, smart DNS servers, externally-managed storage and caching
+infrastructure, outsourced mail servers, and so on and so on.&lt;/p&gt;&lt;p&gt;Traditional application deployment most commonly makes a sharp distinction between
+the the deployment of code and the management of the infrastructure on which the
+code runs and which the code uses. Tools like Puppet, Chef and cfengine are primarily
+focused on automating the configuration of particular servers, with separate tooling
+like Foreman for bootstrapping those servers and, in many cases, home-grown scripts
+doing the actual deployment of applications.&lt;/p&gt;&lt;p&gt;&lt;a href="https://terraform.io/" target="_blank"&gt;Terraform&lt;/a&gt; is an open source project by &lt;a href="https://hashicorp.com/" target="_blank"&gt;HashiCorp&lt;/a&gt; that takes a new angle on
+cloud infrastructure and application deployment. It takes the declarative resource
+definition style of Puppet but applies it to the definition of resources that
+can be created, updated and deleted via network APIs. In a world of cloud-hosted
+infrastructure, that can include everything from DNS records to virtual machines to
+git repositories. While Terraform's current set of resources is weighted towards
+infrastructure-as-a-service platforms, its model is suitably generic — just
+Create, Read, Update and Delete operations — that it can be readily applied to
+just about anything that could be reasonably modelled as a REST API resource.&lt;/p&gt;&lt;p&gt;As well as a resource-oriented configuration language for API-managed objects,
+Terraform's other key feature is its concept of &lt;em&gt;state&lt;/em&gt;, which allows Terraform not
+only to create resources but to keep track of previously-created resources and
+update and delete them as needed. The current state of one deployment can be used
+as an input to another, so as well as &lt;em&gt;managing&lt;/em&gt; infrastructure Terraform can
+also be seen as a way of &lt;em&gt;publishing&lt;/em&gt; and &lt;em&gt;sharing&lt;/em&gt; infrastructure between
+teams within an organization.&lt;/p&gt;&lt;p&gt;Deploying in terms of API-managed resources works best when applications
+are &lt;em&gt;built&lt;/em&gt; in terms of such services. One certainly &lt;em&gt;could&lt;/em&gt; provision a
+stock Ubuntu EC2 instance with Terraform and then from then on install
+software on it via a traditional "copy-files-flip-symlink-restart" workflow,
+if we produce an "Amazon Machine Image" (AMI) with the application already
+installed then we can have Terraform deploy it directly, and benefit from
+the fast startup time that comes from having done most of the setup work
+at application build time rather than at deploy time.&lt;/p&gt;&lt;p&gt;HashiCorp's answer to this need is &lt;a href="http://packer.io/" target="_blank"&gt;Packer&lt;/a&gt;, a tool which in fact predates
+Terraform and is designed to automate the creation of machine images for
+various cloud infrastructure platforms. Its model is pretty simple:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;p&gt;A &lt;em&gt;builder&lt;/em&gt; spins up an environment based on an existing image and prepares
+that environment so Packer can interact with it.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;One or more &lt;em&gt;provisioners&lt;/em&gt; communicate with the created environment to
+customize it in arbitrary ways. For example, a &lt;tt&gt;chef-solo&lt;/tt&gt; provisioner
+allows Chef to be used to apply changes to the machine.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;The builder then captures some kind of image of the build environment,
+which becomes the &lt;em&gt;artifact&lt;/em&gt; of the build.&lt;/p&gt;&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;When applied to AWS, the builder creates an EC2 instance, the provisioners
+interact with it over SSH, and then the final artifact is an AMI that can
+be used as the basis for new instances created at deployment time.&lt;/p&gt;&lt;/section&gt;&lt;section id="putting-the-pieces-together"&gt;&lt;h3&gt;Putting the Pieces Together&lt;/h3&gt;&lt;p&gt;Perhaps due to it predating Terraform by some years, the interopability between
+Packer and Terraform is unfortunately rather limited. If you wish to move beyond
+manually pasting the ids of the generated artifacts into your Terraform
+configuration, you're left either with parsing Packer's rather awkward (but
+certainly machine-readable) CSV output, or running Packer inside HashiCorp's
+&lt;a href="https://atlas.hashicorp.com/" target="_blank"&gt;Atlas&lt;/a&gt; platform. Either way it doesn't feel completely natural, and that's rather
+unfortunate for two tools that supposedly belong to the same family.&lt;/p&gt;&lt;p&gt;Along with the frustration of the poor tessellation of these tools, I also
+couldn't shake the idea that Packer's high-level capabilities are pretty close
+to being a subset of Terraform's capabilities.&lt;/p&gt;&lt;/section&gt;&lt;section id="build-vs-deploy-not-so-different"&gt;&lt;h3&gt;Build vs. Deploy: Not so different?&lt;/h3&gt;&lt;p&gt;When we put aside various implementation details and the set of resources that happen to
+be implemented in each codebase today, there are only a few minor differences
+between the build process afforded by Packer and the deployment process afforded
+by Terraform:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;p&gt;Terraform manages a set of long-lived resources across multiple incremental deployments.
+Packer produces a completely distinct set of resources for each run.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Terraform creates and updates resources to move them towards a configured end state.
+Packer provisions certain resources only to assist in the build process, destroying them
+once the process is complete.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Terraform keeps track of the resources it's created, so they can be updated and deleted
+by later runs. Packer cedes control of the resources it created as soon as it completes,
+leaving the user to do manual cleanup.&lt;/p&gt;&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;The first two of these are legitimate and fundamental differences in purpose between the build
+and deployment phases. The last of these is arguably a limitation of Packer: though there is little
+reason to &lt;em&gt;alter&lt;/em&gt; the artifacts of a build, it would actually be rather useful to be able to
+automatically destroy resources created for older versions of an app that are no longer needed
+in order to reduce storage costs.&lt;/p&gt;&lt;p&gt;The first two differences also apply to the use of Puppet or Chef as a one-off image provisioning
+tool vs. their use for ongoing management of a long-lived machine. If these tools can be applied
+to both problems, and if Terraform's configuration is at a similar level of expressive power
+to Puppet's, perhaps we could apply the resource management guts of Terraform to both problems
+also.&lt;/p&gt;&lt;/section&gt;&lt;section id="padstone-a-terraform-build-prototype"&gt;&lt;h3&gt;Padstone: A Terraform Build Prototype&lt;/h3&gt;&lt;p&gt;I created &lt;a href="https://github.com/apparentlymart/padstone" target="_blank"&gt;Padstone&lt;/a&gt; to explore the idea of applying Terraform's model to the problem of building
+application artifacts. Padstone is a small command line tool that puts a new, build-oriented façade
+on the underlying mechanisms of Terraform.&lt;/p&gt;&lt;p&gt;The most readily-obvious difference between Padstone and Terraform is that the set of subcommands
+it accepts are more oriented around an application build workflow:&lt;/p&gt;&lt;pre class='terminal'&gt;$ padstone --help
+Usage:
+  padstone [OPTIONS] &amp;lt;build | destroy | publish&amp;gt;
+
+Help Options:
+  -h, --help  Show this help message
+
+Available commands:
+  build    Run a build and produce a state file
+  destroy  Destroy the results of a build
+  publish  Publish a state file to remote storage&lt;/pre&gt;&lt;section id="executing-builds-with-padstone"&gt;&lt;h4&gt;Executing builds with Padstone&lt;/h4&gt;&lt;p&gt;The &lt;tt&gt;padstone build&lt;/tt&gt; command expects as arguments:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;p&gt;a path to a directory containing Terraform-like configuation files (named with a &lt;tt&gt;.pad&lt;/tt&gt;
+extension, a superset of standard Terraform config as we will see in a moment)&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;a path at which a state file will be created to record the results of the build process&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;zero or more values to populate the user variables defined in the configuration&lt;/p&gt;&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;Much like &lt;tt&gt;terraform apply&lt;/tt&gt;, &lt;tt&gt;padstone build&lt;/tt&gt; uses Terraform providers and provisioners to
+create various resources and then records the state of these resources in a JSON state file.
+&lt;em&gt;Unlike&lt;/em&gt; Terraform, Padstone always starts with an empty state and thus creates a fresh set of
+resources for each run, thus addressing the first of our differences from the section above.
+One down, one to go!&lt;/p&gt;&lt;/section&gt;&lt;section id="temporary-build-infrastructure"&gt;&lt;h4&gt;Temporary Build Infrastructure&lt;/h4&gt;&lt;p&gt;To address the second of the differences I noted, Padstone extends the Terraform configuration
+model with the concept of a &lt;em&gt;temporary resource&lt;/em&gt;. A temporary resource is created the same way
+as any other resource, except that &lt;tt&gt;padstone build&lt;/tt&gt; will destroy all of the temporary resources
+before it returns.&lt;/p&gt;&lt;p&gt;At the time of writing, Terraform lacks a resource type for creating an AMI, which is the main
+purpose of the AWS family of builders in Packer. However, AMIs can be created via the API just
+like any other resource, so it's a simple matter to extend Terraform to support these API functions,
+as I did in &lt;a href="https://github.com/hashicorp/terraform/pull/2784" target="_blank"&gt;Terraform pull request #2784&lt;/a&gt;. I used a build of Terraform with that patch applied
+in order to illustrate how Padstone can achieve the same result as Packer.&lt;/p&gt;&lt;p&gt;The following Padstone config builds an AMI via a similar process to that used by Packer's
+&lt;tt&gt;amazon-ebs&lt;/tt&gt; builder and Chef provisioner:&lt;/p&gt;&lt;p&gt;We can put this config in &lt;tt&gt;webserver/ami.pad&lt;/tt&gt; and then create an AMI for a particular application
+with Padstone as follows:&lt;/p&gt;&lt;pre class='terminal'&gt;$ padstone build webserver/ webserver-0.0.1.tfstate version=0.0.1 \
+       vpc_id=vpc-xxxxxxxx subnet-id=subnet-xxxxxxxx
+
+[aws_key_pair.provision] Creating...
+[aws_security_group.ssh] Creating...
+[aws_instance.base] Creating...
+[aws_instance.base] Provisioning...
+[aws_ami_from_instance.image] Creating...
+--- Build succeeded! Now destroying temporary resources... ---
+[aws_instance.base] Destroying...
+[aws_key_pair.provision] Destroying...
+[aws_security_group.ssh] Destroying...
+
+Outputs:
+- version = 0.0.1
+- ami_id = ami-xxxxxxxx&lt;/pre&gt;&lt;p&gt;With this extra step of destroying the temporary resources we resolve the second difference between
+deploy and build. Throughout the process Padstone maintains the current resource state in
+the &lt;tt&gt;webserver-0.0.1.tfstate&lt;/tt&gt;, and so once the process is complete it contains just the outputs
+and the non-temporary resources.&lt;/p&gt;&lt;/section&gt;&lt;section id="cleaning-up"&gt;&lt;h4&gt;Cleaning Up&lt;/h4&gt;&lt;p&gt;As noted above, Packer provides no automatic way to destroy the resources it created once they are
+no longer needed. By writing out a state file, Padstone can overcome this limitation of Packer:&lt;/p&gt;&lt;pre class='terminal'&gt;$ padstone destroy webserver/ webserver-0.0.1.tfstate version=0.0.1 \
+       vpc_id=vpc-xxxxxxxx subnet-id=subnet-xxxxxxxx
+
+[aws_ami_from_instance.image] Destroying...
+All resources destroyed&lt;/pre&gt;&lt;p&gt;All that's required to benefit from this is to record somewhere the state file for each version.
+For example, if the build process is being orchestrated by Jenkins then its ability to capture
+files as artifacts could be used to attach the state to the Jenkins build result.&lt;/p&gt;&lt;/section&gt;&lt;section id="publishing-artifacts"&gt;&lt;h4&gt;Publishing Artifacts&lt;/h4&gt;&lt;p&gt;The original motivation for Padstone was to create a build tool that integrates well with Terraform.
+This is achieved by publishing the state file that describes the created resources,
+so that it can be imported into a Terraform deployment using the &lt;tt&gt;terraform_remote_state&lt;/tt&gt;
+resource:&lt;/p&gt;&lt;pre class='terminal'&gt;$ padstone publish webserver-0.0.1.tfstate s3 \
+       region=us-west-2 bucket=padstone-results \
+       key=exampleapp/webserver-0.0.1.tfstate&lt;/pre&gt;&lt;p&gt;As long as whoever is running the deployment has access to the same S3 bucket, this state can
+be used by replicating the same settings in the Terraform configuration:&lt;/p&gt;&lt;p&gt;Of course, since all Terraform resources are available in Padstone it is also possible for one
+Padstone configuration to consume resources from another, allowing the build process get the same
+collaboration benefits as Terraform brings to the deployment process.&lt;/p&gt;&lt;/section&gt;&lt;section id="how-padstone-works"&gt;&lt;h4&gt;How Padstone Works&lt;/h4&gt;&lt;p&gt;Padstone re-uses a &lt;em&gt;lot&lt;/em&gt; of code from Terraform. It has its own top-level configuration parser
+in order to support the temporary resources, and of course the implementation of its unique
+commands, but really all it's doing is transforming its input into something that the Terraform
+core can consume and then running the same old "apply" and "destroy" steps.&lt;/p&gt;&lt;p&gt;The concept of temporary resources is implemented via some trickery: Terraform's dependency resolver
+wouldn't normally allow a resource to be destroyed without also destroying its dependents, but
+Padstone is able to break this rule by splitting the internal state data structure in two,
+maintaining the temporaries and the results as separate manifests. The temporaries can then be
+cleaned up by destroying the state where the results are excluded, causing Terraform to temporarily
+"forget" that the result resources exist.&lt;/p&gt;&lt;p&gt;The full details are, of course, in &lt;a href="https://github.com/apparentlymart/padstone" target="_blank"&gt;the code&lt;/a&gt;.&lt;/p&gt;&lt;/section&gt;&lt;/section&gt;&lt;section id="where-to-from-here"&gt;&lt;h3&gt;Where to from here?&lt;/h3&gt;&lt;p&gt;In its current state, Padstone is just a prototype and far from ready to use. Although it's shown
+that there's potential for a superior solution compared to Packer, the set of resources supported
+in today's Terraform does not include all of the items that Packer can produce.&lt;/p&gt;&lt;p&gt;However, with the right set of Terraform resources Padstone could push beyond Packer's narrow focus
+on machine images to many other per-app-version resource types. For example:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;p&gt;A resource for creating objects in S3 buckets could be used to distribute arbitrary files, like
+library archives for use in other builds, or application archives to deploy with AWS OpsWorks.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;A provider for &lt;a href="https://www.fastly.com/" target="_blank"&gt;Fastly&lt;/a&gt; could exploit the concept of configuration versions that's built in to
+their API in order to push new configurations at build time and simply activate them at
+deploy time.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Padstone could be used to create a separate set of EC2 instances for each application version,
+and then have Terraform manage only the load balancer in front of them to support quick rollback
+to the still-running older version in the event of issues. The instances for each version can
+then have their own independent lifecycle. Similar thinking could apply to any other kind of
+resource that's deployed behind some sort of switching layer that allows backend resource
+selections to change quickly.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;In principle, Padstone could benefit from Terraform providers that manipulate local resources
+on the system where Padstone is running. This is not appropriate for standard Terraform since
+those resources would usually not be available to other users of the created state, but Padstone
+could use them as &lt;em&gt;temporary&lt;/em&gt; resources to assist in the creation of a non-local result resource,
+such as running VirtualBox locally to create a machine image that is ultimately upladed to S3,
+or registered in &lt;a href="https://atlas.hashicorp.com/" target="_blank"&gt;Atlas&lt;/a&gt; as a shared Vagrant box.&lt;/p&gt;&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;At the moment I have no strong wish to develop and maintain a competitor to Packer. Rather I'm
+sharing this proof-of-concept in the hope of stimulating a discussion about ways in which these
+problems could be solved in a more integrated, flexible manner by the "HashiCorp stack". I feel
+that such a project would be far more successful if lead and coordinated by a team whose full
+time job is creating DevOps tools. Never say never, though!&lt;/p&gt;&lt;/section&gt;</description><link>http://apparently.me.uk/padstone-terraform-for-deployment/</link><guid>http://apparently.me.uk/padstone-terraform-for-deployment/</guid><pubDate>Sun, 19 Jul 2015 00:00:00 +0000</pubDate><dc:creator>Martin Atkins</dc:creator></item><item><title>Design Patterns with AngularJS Directives</title><atom:summary>Examples of different ways AngularJS directives can be used to design effective application views</atom:summary><description>&lt;p&gt;One of the most powerful concepts AngularJS is the &lt;em&gt;directive&lt;/em&gt;. Directives
+are a key building block, allowing behavior to be assigned to HTML elements
+in a declarative way, turning the HTML DOM into a rich template language for
+responsive, interactive applications.&lt;/p&gt;&lt;p&gt;Directives represent a very powerful and flexible tool, and it's often unclear
+how best to apply this tool to various problems. This article is a collection
+of design examples that apply directives to solve particular classes of
+problem. In the process we will explore the key features of AngularJS
+directives and see how these features can interact to produce positive as well
+as negative results.&lt;/p&gt;&lt;p&gt;This article assumes some familiarity with AngularJS concepts such as scopes,
+controllers and templates. If you're completely new to Angular, I suggest
+reading &lt;a href="https://docs.angularjs.org/tutorial" target="_blank"&gt;the PhoneCat tutorial&lt;/a&gt; as
+a starting point, and getting some experience using pre-existing directives
+before attempting to build your own.&lt;/p&gt;&lt;section id="directive-basics"&gt;&lt;h3&gt;Directive Basics&lt;/h3&gt;&lt;p&gt;Before we get stuck in let's quickly recap the general principles of
+directives, to establish the terminology that will appear in the remainder
+of the article.&lt;/p&gt;&lt;p&gt;As noted above, directives allow behavior to be assigned to HTML elements.
+This occurs during Angular's &lt;em&gt;template compilation&lt;/em&gt; process, in which it
+walks a HTML DOM tree and matches each node against the table of defined
+directives.&lt;/p&gt;&lt;p&gt;A defined directive can apply to a particular element name, a particular
+attribute name, a particular class (in the CSS sense) or to a special format
+of HTML comment. Most directives apply to element and/or attribute names,
+since these are the most natural to use in templates.&lt;/p&gt;&lt;p&gt;Given the various ways directives can apply, a given DOM node can potentially
+have several different directives applied to it. Here's a simple example
+of an HTML element with three attribute-based directives:&lt;/p&gt;&lt;p&gt;Each of the attributes instantiates a different directive and each directive
+operates largely independently of the others. Since they are all operating on
+the same element, is is important that their respective concerns are
+well-separated to avoid strange collisions in behavior.&lt;/p&gt;&lt;section id="directive-instantiation-phases"&gt;&lt;h4&gt;Directive Instantiation Phases&lt;/h4&gt;&lt;p&gt;A directive is instantiated in two distinct phases.&lt;/p&gt;&lt;p&gt;The directive is first given an opportunity to "compile" its template, and in
+this phase it is operating on the original &lt;em&gt;template&lt;/em&gt; DOM as given in the
+source HTML document, before any scopes have been assigned.&lt;/p&gt;&lt;p&gt;Most directives do not make use of this compilation phase, but a key example
+of the use of this phase is the &lt;tt&gt;ngRepeat&lt;/tt&gt; directive, which produces zero
+or more copies of the template element it is given. During its compile phase
+it parses the repeat expression given in its attribute value, which thus
+informs how many copies of the element will be created.&lt;/p&gt;&lt;p&gt;Once directives have had an opportunity to "compile" they are then given the
+opportunity to "link". During the link phase the directive recieves its
+&lt;em&gt;instance element&lt;/em&gt; and the corresponding scope, and the directive is
+responsible for connecting these together in whichever way is appropriate.&lt;/p&gt;&lt;p&gt;To understand the difference between the compile and link phases, the
+&lt;tt&gt;ngRepeat&lt;/tt&gt; directive is again helpful. Considering again a simple
+example of a repeated element:&lt;/p&gt;&lt;p&gt;The &lt;tt&gt;ng-repeat&lt;/tt&gt; attribute causes this element to be cloned potentially many
+times in the resulting DOM. From the perspective of the &lt;tt&gt;ngSrc&lt;/tt&gt; directive,
+its &lt;em&gt;compilation&lt;/em&gt; phase occurs only once, before those clones are created.
+Its &lt;em&gt;linking&lt;/em&gt; phase is, on the other hand, likely to occur several times:
+once for each clone that is created, with each link call receiving a different
+instance element and scope.&lt;/p&gt;&lt;/section&gt;&lt;section id="relationship-to-scopes-and-controllers"&gt;&lt;h4&gt;Relationship To Scopes and Controllers&lt;/h4&gt;&lt;p&gt;Angular's concept of &lt;em&gt;scopes&lt;/em&gt; is also important when working with directives.
+Fundamentally a scope is just a collection of named values, possibly inheriting
+other named values from a &lt;em&gt;parent&lt;/em&gt; scope.&lt;/p&gt;&lt;p&gt;Each scope is usually managed by a &lt;em&gt;controller&lt;/em&gt;, which places data into the
+scope for use by templates as well as providing an API through which the
+template, as well as other controllers, can manipulate that data.&lt;/p&gt;&lt;p&gt;There are many ways to create scopes in Angular, and many applications of
+controllers. Directives are the most common means by which scopes are created,
+and instantiating controllers for those new scopes is often a key part of the
+link phase of a directive.&lt;/p&gt;&lt;/section&gt;&lt;/section&gt;&lt;section id="simple-template-directives"&gt;&lt;h3&gt;Simple Template Directives&lt;/h3&gt;&lt;p&gt;By far the simplest case of a directive is one that exists just as an
+abstraction over a more complex HTML template, taking arguments from
+its attributes and making them available in the template.&lt;/p&gt;&lt;p&gt;This is such a common case that AngularJS allows it to be implemented
+in a completely declarative way:&lt;/p&gt;&lt;p&gt;This can then be used as follows:&lt;/p&gt;&lt;p&gt;In the above template declaration, the &lt;tt&gt;scope&lt;/tt&gt; property tells the compiler
+that this directive needs its own local scope, and in turn requests that
+the scope should be populated with a &lt;tt&gt;name&lt;/tt&gt; key whose value is bound to
+the contents of the &lt;tt&gt;name&lt;/tt&gt; attribute. The &lt;tt&gt;@&lt;/tt&gt; prefix on the property
+value indicates that we wish to interpret the attribute value as an
+interpolated string, which means we can also use interpolation syntax if
+required:&lt;/p&gt;&lt;p&gt;In terms of the directive phases described earlier, the Angular compiler
+is effectively providing a default compile and link phase for this kind
+of directive. In the compile phase, the provided template is recursively
+passed back into the compiler for processing. The link phase can then just
+link the new scope to the compiled template, producing the desired result.&lt;/p&gt;&lt;p&gt;This simple usage of directives is only a small step above the built-in
+&lt;tt&gt;ngInclude&lt;/tt&gt; directive. The difference is that our custom directive can
+take data from custom element attributes rather than only from values
+already present in the parent scope, creating a small layer of abstraction
+between the templates.&lt;/p&gt;&lt;p&gt;Simple template directives are a great way to make reusable, self-contained
+bundles of markup that can be called on many times in your application.&lt;/p&gt;&lt;/section&gt;&lt;section id="template-wrappers"&gt;&lt;h3&gt;Template Wrappers&lt;/h3&gt;&lt;p&gt;A small extension of the simple template case is a template that &lt;em&gt;wraps&lt;/em&gt;
+some other caller-provided content. Consider for example a reusable modal
+dialog directive:&lt;/p&gt;&lt;p&gt;Since this template is longer than the previous one we'll keep it in a
+separate file and reference it by URL. Here's the contents of the template
+file:&lt;/p&gt;&lt;p&gt;First notice that in the &lt;tt&gt;scope&lt;/tt&gt; property in the declaration we're now using
+the &lt;tt&gt;&amp;amp;&lt;/tt&gt; prefix instead of the &lt;tt&gt;@&lt;/tt&gt; used previously. This requests that
+the given attribute be parsed as an &lt;em&gt;expression&lt;/em&gt;, and the scope populated not
+with the result of the expression but instead a &lt;em&gt;function&lt;/em&gt; that can be called
+to evaluate the expression. This allows the caller to provide an event handler
+that will be called on close, as we'll see in a moment.&lt;/p&gt;&lt;p&gt;The other point of note here is the use of the &lt;tt&gt;transclude&lt;/tt&gt; property on
+the directive declaration, along with the &lt;tt&gt;ng-transclude&lt;/tt&gt; attribute within
+the template. The former requests that the entire contents of the directive's
+template element be compiled and saved, while the latter causes the saved
+contents to be recalled and inserted as the contents of the annotated
+element.&lt;/p&gt;&lt;p&gt;With this all in place, we can make use of our modal dialog like this:&lt;/p&gt;&lt;p&gt;Here we assume that a parent controller has provided this &lt;tt&gt;dialogResult&lt;/tt&gt;
+function in the scope. Its implementation is left as an exercise for the
+reader, but the result of this template will be an instance of the modal
+dialog template from above, with the provided question and buttons embedded in
+its content element. When the "close" widget on the modal is clicked, it will
+have the same effect as clicking the cancel button due to the use of the same
+event-handler for both.&lt;/p&gt;&lt;/section&gt;&lt;section id="event-handling-directives"&gt;&lt;h3&gt;Event-handling Directives&lt;/h3&gt;&lt;p&gt;In the previous example we saw how a directive can provide an event-handling
+interface in addition to its other behavior. In the interests of separating
+concerns though, it's often useful to have directives whose only purpose is
+to detect events and signal them via expressions.&lt;/p&gt;&lt;p&gt;The built-in &lt;tt&gt;ngClick&lt;/tt&gt;, &lt;tt&gt;ngBlur&lt;/tt&gt; etc directives are examples of this in
+the standard library. Implementing an event-handling directive makes a good
+first example of a directive with custom compile and link phases, as opposed
+to providing a template and using the built-in functionality.&lt;/p&gt;&lt;p&gt;Let's consider the example of a directive that signals an event if the
+mouse pointer hovers over an element for three seconds. This is a contrived
+example but simple enough not to distract too much from the mechanism.&lt;/p&gt;&lt;p&gt;Unlike our previous examples, we do not specify the &lt;tt&gt;scope&lt;/tt&gt; or &lt;tt&gt;template&lt;/tt&gt;
+properties here. Only one directive on each element can use &lt;tt&gt;scope&lt;/tt&gt;, so it
+is good manners to avoid its use on small directives intended for use in
+conjunction with others. We also want to have no visual effect on the document,
+so the use of &lt;tt&gt;template&lt;/tt&gt; would be inappropriate here.&lt;/p&gt;&lt;p&gt;Instead, we manually implement the compile and link phases of our directive.
+In our compile phase, we make use of the &lt;tt&gt;$parse&lt;/tt&gt; service, which is where
+Angular's expression parse is implemented. It takes a string containing
+an expression like &lt;tt&gt;"beginTakeover()"&lt;/tt&gt;, and returns a function that takes
+a scope and returns the result of evaluating the expression in that scope.&lt;/p&gt;&lt;p&gt;The compile function ends by returning the link function. In the link function
+it's time to bind our behavior to the DOM, in this case by registering some
+DOM event handlers on our instance element &lt;tt&gt;iElement&lt;/tt&gt;.&lt;/p&gt;&lt;p&gt;When the hover condition is eventually detected through the successful
+completion of our timeout, we finally call the function we obtained during
+the compile phase, passing in the related scope.&lt;/p&gt;&lt;p&gt;Since we set &lt;tt&gt;restrict&lt;/tt&gt; to &lt;tt&gt;'A'&lt;/tt&gt; in our declaration, this directive is
+valid only as an attribute. Where we left this unstated in the previous
+examples it defaulted to applying to both elements &lt;em&gt;and&lt;/em&gt; attributes.&lt;/p&gt;&lt;p&gt;With all of that in place, it is a simple matter to use this directive:&lt;/p&gt;&lt;p&gt;Assuming some CSS is provided to make this element big enough to hover the
+mouse over, the &lt;tt&gt;beginTakeover&lt;/tt&gt; function in the current scope will be
+called after the mouse dwells for three seconds, as we intended.&lt;/p&gt;&lt;p&gt;Recall that earlier we noted that there may be many calls to the link function
+for each call to the compile function. That is true here, for example if we
+were to combine &lt;tt&gt;ng-repeat&lt;/tt&gt; with &lt;tt&gt;on-dwell&lt;/tt&gt;:&lt;/p&gt;&lt;p&gt;In the above scenario, the directive's compile function will be called &lt;em&gt;once&lt;/em&gt;,
+being passed in the single element that resulted from parsing the above
+HTML snippet. However, the returned link function will be &lt;em&gt;for each object&lt;/em&gt; in
+the &lt;tt&gt;ads&lt;/tt&gt; collection, and will be passed instead the &lt;em&gt;cloned&lt;/em&gt;
+element that &lt;tt&gt;ng-repeat&lt;/tt&gt; created, along with a child scope that contains one
+of the ads in the &lt;tt&gt;ad&lt;/tt&gt; variable, causing &lt;tt&gt;ad.beginTakeover()&lt;/tt&gt; to be called
+with the correct object for each element.&lt;/p&gt;&lt;p&gt;To keep distinct the concepts of the &lt;em&gt;template element&lt;/em&gt; passed into compile
+and the &lt;em&gt;instance element&lt;/em&gt; passed into link, it is conventional to name these
+ and  respectively.&lt;/p&gt;&lt;/section&gt;&lt;section id="directives-with-controllers"&gt;&lt;h3&gt;Directives With Controllers&lt;/h3&gt;&lt;p&gt;In our earliest examples we saw how a directive can be used just as a simple
+container for encapsulating a template. Sometimes a static template is not
+enough however, and a controller is desired to bring some behavior into play.&lt;/p&gt;&lt;p&gt;The following is a declaration of a simple "image carousel" directive, which
+takes an array of image URLs and shows them one at a time, with buttons
+provided to navigate to the previous and next images.&lt;/p&gt;&lt;p&gt;Here the caller provides, via the &lt;tt&gt;image-urls&lt;/tt&gt; attribute, an expression that
+evaluates to an array of strings containing image URLs. Our controller
+is responsible for selecting an appropriate current image URL. The selection
+can potentially change whenever the list of images changes (e.g. if there are
+now fewer items in the list) or when the user clicks on one of the navigation
+buttons. Angular also helpfully calls our &lt;tt&gt;$watchCollection&lt;/tt&gt; callback once
+after first registration, triggering us to call &lt;tt&gt;update&lt;/tt&gt; for the first time
+to initialize.&lt;/p&gt;&lt;p&gt;Here is the directive's template:&lt;/p&gt;&lt;p&gt;This combination of a scope, a template and a controller makes it easy to
+encapsulate a re-usable interactive visual component, with the caller just
+providing the data.&lt;/p&gt;&lt;section id="on-directives-that-load-data"&gt;&lt;h4&gt;On Directives that Load Data&lt;/h4&gt;&lt;p&gt;Some developers are tempted to use directive controllers to load data from
+some data source and then display it. In most cases this is not advisable since
+it mixes the concern of loading the data with the concern of displaying it.
+It's better to at least separate the data loading into a &lt;em&gt;separate&lt;/em&gt; controller,
+which can then be used via the &lt;tt&gt;ngController&lt;/tt&gt; directive:&lt;/p&gt;&lt;p&gt;Better still, if your app is using a router it's often best to have the
+&lt;em&gt;route&lt;/em&gt; controller be responsible for data loading, and limit the templates
+to just displaying data from the route's scope. This way the templates are
+completely unaware of where the data comes from.&lt;/p&gt;&lt;/section&gt;&lt;/section&gt;&lt;section id="multiple-directives-on-one-element"&gt;&lt;h3&gt;Multiple Directives on One Element&lt;/h3&gt;&lt;p&gt;As we saw earlier, it's easy to combine multiple isolated directives on a
+single element as long as their functionality doesn't conflict. Sometimes,
+however, it is desirable for one directive to interact with another, with
+one directive providing a public API that can be consumed by another.&lt;/p&gt;&lt;p&gt;By far the most common use of this is in implementing custom form controls
+using &lt;tt&gt;ngModel&lt;/tt&gt;. All of the form control handling in AngularJS is implemented
+by applying a specific UI element directive (the &lt;em&gt;view&lt;/em&gt;) to the same element
+as the &lt;tt&gt;ngModel&lt;/tt&gt; directive, with the latter providing an API to the former.&lt;/p&gt;&lt;p&gt;Let's see how that looks from the perspective of the UI element directive,
+by implementing a simple radio-button-based boolean form element.&lt;/p&gt;&lt;p&gt;This is slightly different from our earlier examples in that this directive
+provides a &lt;em&gt;link&lt;/em&gt; implementation but just uses the default &lt;em&gt;compile&lt;/em&gt;
+implementation, since no processing of the template element is required.
+In this case Angular behaves as if we had a compile function that simply
+immediately returned the given link function.&lt;/p&gt;&lt;p&gt;The main new feature here is the &lt;tt&gt;require&lt;/tt&gt; property in the definition. This
+tells Angular that if there is also an &lt;tt&gt;ngModel&lt;/tt&gt; instance connected to this
+directive, then provide its controller as an extra parameter to the link
+function. The question mark at the beginning indicates that this is an
+optional dependency, so the link function will recieve &lt;tt&gt;null&lt;/tt&gt; if there
+is no &lt;tt&gt;ngModel&lt;/tt&gt; present.&lt;/p&gt;&lt;p&gt;A full description of the functionality of &lt;tt&gt;ngModel&lt;/tt&gt; is best left for an
+article of its own, but suffice it to say that it's purpose is to allow a
+separation between the value stored in the scope -- that is, the model value --
+from the form of the value used for presentation to the user. Between the
+two can be arbitrary transformations and validation steps.&lt;/p&gt;&lt;p&gt;In the above example, our interaction with the model is modest: we just
+translate between the boolean we store as the view model and the string
+we receive from the primitive form elements in the template. Here is the
+template, incidentally:&lt;/p&gt;&lt;p&gt;For convenience we're also using separate instances of &lt;tt&gt;ngModel&lt;/tt&gt; on our
+internal radio buttons, but of course these instances are distinct from
+the one applied directly to our &lt;tt&gt;yesNoPicker&lt;/tt&gt; element.&lt;/p&gt;&lt;p&gt;When this element is used in the template it must be used alongside &lt;tt&gt;ngModel&lt;/tt&gt;
+in order to instantiate the controller we expect:&lt;/p&gt;&lt;p&gt;This technique allows us to &lt;em&gt;consume&lt;/em&gt; the API provided by another directive
+on the same element. In the next section, we'll see how such an API can be
+provided.&lt;/p&gt;&lt;/section&gt;&lt;section id="interacting-with-a-parent-directive"&gt;&lt;h3&gt;Interacting with a Parent Directive&lt;/h3&gt;&lt;p&gt;Sometimes it is necessary to build a template construct that is too complex
+to be declared with only one element. Constructs like &lt;tt&gt;ngSwitch&lt;/tt&gt; require
+both a container element that establishes a context and then zero or more
+child elements that complete the definition.&lt;/p&gt;&lt;p&gt;These multi-element constructs can be implemented using the same &lt;tt&gt;require&lt;/tt&gt;
+mechanism we saw in the previous section. To demonstrate, let's build a
+directive that provides an easy way to create an HTML table from a list
+of objects.&lt;/p&gt;&lt;p&gt;In this case we will actually need &lt;em&gt;two&lt;/em&gt; directives: one to establish the
+table container, and the other to declare the individual columns.&lt;/p&gt;&lt;p&gt;This example brings together many features we've visited in earlier examples.
+The &lt;tt&gt;autoTable&lt;/tt&gt; directive is just like our image carousel example where
+a template is combined with a controller, but this time the controller
+also provides the &lt;tt&gt;registerColumn&lt;/tt&gt; method as its public API.&lt;/p&gt;&lt;p&gt;The &lt;tt&gt;col&lt;/tt&gt; directive declares that it requires the &lt;tt&gt;autoTable&lt;/tt&gt; directive,
+but this time it uses the &lt;tt&gt;?^&lt;/tt&gt; prefix to indicate that this directive is
+required on the &lt;em&gt;parent&lt;/em&gt; element. Again we declare it as optional, this time
+so that we don't interfere with the normal use of the &lt;tt&gt;col&lt;/tt&gt; element in
+a plain HTML table.&lt;/p&gt;&lt;p&gt;Earlier we used &lt;tt&gt;$parse&lt;/tt&gt; to process AngularJS expressions, while in this
+example we used &lt;tt&gt;$interpolate&lt;/tt&gt; to process a string that may contain
+template interpolation syntax, like &lt;tt&gt;'Hello {{ name }}!'&lt;/tt&gt;. Its result
+is the same: a function that takes a scope (or scope-like object) and returns
+the string result.&lt;/p&gt;&lt;p&gt;Here, as usual, is the template for the &lt;tt&gt;autoTable&lt;/tt&gt; directive:&lt;/p&gt;&lt;p&gt;The &lt;tt&gt;col&lt;/tt&gt; directive does not need a template because it is used only to
+provide data to the &lt;tt&gt;autoTable&lt;/tt&gt; directive and it will be removed from the
+DOM once the template is initialized.&lt;/p&gt;&lt;p&gt;This pair of directives can then be used together as follows:&lt;/p&gt;&lt;p&gt;This then expects a &lt;tt&gt;users&lt;/tt&gt; array looking like this:&lt;/p&gt;&lt;p&gt;It is a rare situation that requires a multi-directive construct like this,
+but when the need arises Angular's template system still provides for a
+clean separation of concerns between the different components by allowing
+each directive to provide a public API.&lt;/p&gt;&lt;/section&gt;&lt;section id="conclusion"&gt;&lt;h3&gt;Conclusion&lt;/h3&gt;&lt;p&gt;Throughout this article we have seen that directives are a very flexible
+mechanism that can be employed to solve several different classes of problem.
+Fundamentally all of these different techniques can be implemented in terms
+of the low-level ability to define a custom compilation function, but
+Angular provides several shortcuts to simplify the most common cases of
+custom directives.&lt;/p&gt;&lt;p&gt;The examples in this article are intended to show some different ways the
+directive features can be combined to solve real-world problems. In summary,
+the features we've discussed are:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;p&gt;&lt;strong&gt;Directive-specific scopes&lt;/strong&gt; with bindings to the parent scope via HTML
+attribute values, allowing data to be passed in from a parent directive.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;&lt;strong&gt;Directive-specific controller APIs&lt;/strong&gt;, allowing data to be passed in from
+a child or sibling directive.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;&lt;strong&gt;Custom compilation and linking functions&lt;/strong&gt;,
+allowing for arbitrary interactions with both the template and instance
+DOM elements.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;&lt;strong&gt;Child content transclusion&lt;/strong&gt;, allowing a directive to wrap arbitrary child
+content inside additional template HTML.&lt;/p&gt;&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;These building blocks together add up to support all of the varied
+functionality in Angular's standard directive library, as well as supporting
+your application's specialized DOM-manipulation needs.&lt;/p&gt;&lt;p&gt;For an example of a novel use of directives, see my other article
+on &lt;a href="/angularjs-view-specific-sidebars/"&gt;view-specific sidebars&lt;/a&gt;, which
+shows how directives can be used to move elements out of their original
+declaration context and into other parts of the document, such as the
+&lt;tt&gt;head&lt;/tt&gt; element or an application's sidebars.&lt;/p&gt;&lt;p&gt;Directives are easily the most powerful feature of AngularJS, but also arguably
+the most misunderstood. I hope this article has shed some light on the various
+capabilities of directives and how they can be applied to produce a modular,
+maintainable application, or a useful reusable utility library.&lt;/p&gt;&lt;/section&gt;</description><link>http://apparently.me.uk/angularjs-directive-patterns/</link><guid>http://apparently.me.uk/angularjs-directive-patterns/</guid><pubDate>Sat, 20 Sep 2014 00:00:00 +0000</pubDate><dc:creator>Martin Atkins</dc:creator></item><item><title>View-specific Sidebars in AngularJS</title><atom:summary>Sidebars and titles that vary between views in AngularJS</atom:summary><description>&lt;p&gt;For AngularJS applications that use the standard &lt;tt&gt;ngRoute&lt;/tt&gt; facility for
+navigation between multiple pages, a common issue is that while the
+&lt;tt&gt;ng-view&lt;/tt&gt; directive allows the main body of the page to vary between
+routes, the surrounding template is frustratingly static. Even something
+as simple as updating the main page title is not supported natively.&lt;/p&gt;&lt;p&gt;Many applications have worked around this by having the controller manipulate
+state -- either setting &lt;tt&gt;window.title&lt;/tt&gt; directly, or writing data into
+&lt;tt&gt;$rootScope&lt;/tt&gt; -- but that can often lead to presentational concerns bleeding
+into the controller.&lt;/p&gt;&lt;p&gt;This article explores some techniques for allowing the view's &lt;em&gt;template&lt;/em&gt; to
+interact with the site's chrome, and thus allowing these concerns to be
+solved in a more appropriate layer.&lt;/p&gt;&lt;section id="route-specific-title"&gt;&lt;h3&gt;Route-specific Title&lt;/h3&gt;&lt;p&gt;When navigating between views in an AngularJS application, it's desirable
+for the HTML &lt;tt&gt;&amp;lt;title&amp;gt;&lt;/tt&gt; element to be updated so that a user with multiple
+tabs open can quickly understand the context of each of them, or so that
+a browser bookmark will recieve a sensible name.&lt;/p&gt;&lt;p&gt;A trivial way to accomplish this is to simply update the title in the
+route's controller:&lt;/p&gt;&lt;p&gt;However, the precise formatting of the title, much as with other aspects of
+how the content is presented to the user, is rightfully the concern of the
+template layer rather than the controller layer.&lt;/p&gt;&lt;p&gt;What if we could express the title as part of the view's template?&lt;/p&gt;&lt;p&gt;AngularJS directives allow us to support additional elements in templates,
+but this one is unusual in that it ought to have no affect on the rendering of
+the body of the document. Instead, we simply want to make the contents of
+the view element available for use in the page title.&lt;/p&gt;&lt;p&gt;This unusual behavior can be achieved simply by removing the element from the
+DOM during linking. The directive remains active in spite of its element
+being detached, and any interpolations within it will work as expected since
+watchers are attached to scopes rather than to DOM elements:&lt;/p&gt;&lt;p&gt;Here we just reflect the text content of the &lt;tt&gt;view-title&lt;/tt&gt; element into the
+&lt;tt&gt;viewTitle&lt;/tt&gt; variable, so that we can use it within the title element in the
+application's main template:&lt;/p&gt;&lt;p&gt;Watching the element's text content is a tricky way to automatically benefit
+from Angular's existing interpolation of the body, but performance-concious
+applications will probably want to avoid traversing DOM in a watcher by
+manually interpolating the text in the element at compile time.&lt;/p&gt;&lt;section id="don-t-repeat-yourself"&gt;&lt;h4&gt;Don't Repeat Yourself&lt;/h4&gt;&lt;p&gt;Since the "view title" is often present inside some visible element on the
+page, we can avoid repetition by extending the directive to also support
+use as an attribute on an existing element. This is a simple matter of adding
+&lt;tt&gt;A&lt;/tt&gt; to the &lt;tt&gt;restrict&lt;/tt&gt; key in the directive definition, and then only
+conditionally removing the affected element:&lt;/p&gt;&lt;p&gt;The view title can then be "borrowed" from another element in the view template:&lt;/p&gt;&lt;p&gt;Since the &lt;tt&gt;view-title&lt;/tt&gt; directive is originally encountered by angular inside
+the &lt;tt&gt;ng-view&lt;/tt&gt; directive, references to variables remain relative to the view
+scope even though the title is presented outside of it.&lt;/p&gt;&lt;p&gt;This technique, along with a related technique for adding metadata elements
+to the document's &lt;tt&gt;head&lt;/tt&gt;, is implemented in my AngularJS library
+&lt;a href="https://github.com/apparentlymart/angularjs-viewhead" target="_blank"&gt;angularjs-viewhead&lt;/a&gt;,
+which includes
+&lt;a href="http://apparentlymart.github.io/angularjs-viewhead/example/#/" target="_blank"&gt;a working example&lt;/a&gt;.&lt;/p&gt;&lt;/section&gt;&lt;/section&gt;&lt;section id="route-specific-sidebar"&gt;&lt;h3&gt;Route-specific Sidebar&lt;/h3&gt;&lt;p&gt;The above technique of using directives to latch on to elements and then
+move them around in the DOM can be extended to apply to visible elements too.
+Imagine for example an app with a sidebar that normally displays fixed content
+on each view, but for some views the sidebar switches to show some
+view-specific content, such as some context-sensitive related links.&lt;/p&gt;&lt;p&gt;Taking a cue from
+&lt;a href="https://docs.djangoproject.com/en/dev/topics/templates/" target="_blank"&gt;Django Templates&lt;/a&gt;
+and &lt;a href="http://jinja.pocoo.org/docs/dev/" target="_blank"&gt;Jinja2&lt;/a&gt;, we can support template
+"blocks" that are established by the main page template but can be overridden
+on a view-by-view basis.&lt;/p&gt;&lt;p&gt;Here's a basic page skeleton with a "sidebar":&lt;/p&gt;&lt;p&gt;And then here is an example view template defining custom sidebar content:&lt;/p&gt;&lt;p&gt;These two templates introduce two new directives: &lt;tt&gt;block-insertion&lt;/tt&gt;, which
+marks an element as being a replacable block, and &lt;tt&gt;block-replacement&lt;/tt&gt;,
+which can be used in a view template to replace the insertion element
+with the matching key.&lt;/p&gt;&lt;p&gt;For simplicity we'll have these directives collaborate via a global variable,
+but in a real implementation it would be better to use something attached to
+the injector so that multiple applications can coexist on one page. These
+two directives are also tightly coupled together for simplicity's sake.&lt;/p&gt;&lt;p&gt;Much as with the &lt;tt&gt;view-title&lt;/tt&gt; case above, Angular's template compiler treats
+the replacement element as part of the view scope even though it has been moved
+elsewhere in the DOM, allowing variables from the view scope to be used in
+the replacement template.&lt;/p&gt;&lt;p&gt;There is
+&lt;a href="http://plnkr.co/edit/BlmbRL" target="_blank"&gt;a complete, working example of this technique&lt;/a&gt;
+which others are invited to build upon.&lt;/p&gt;&lt;p&gt;This ought to be made more robust before use in a production application. For
+example, it out to support the destruction of &lt;tt&gt;block-insertion&lt;/tt&gt; directives,
+which requires retaining a little more state. It would also be nice for the
+block replacement to support &lt;tt&gt;$animate&lt;/tt&gt; to allow transitions between blocks.&lt;/p&gt;&lt;/section&gt;&lt;section id="conclusion"&gt;&lt;h3&gt;Conclusion&lt;/h3&gt;&lt;p&gt;Enthusiasts for the alternative &lt;tt&gt;ui-router&lt;/tt&gt; implementation of routing often
+criticize the limitations of the stock &lt;tt&gt;ngRoute&lt;/tt&gt;, but with some creative
+use of directives and scope one can achieve some more advanced capabilities
+without switching away wholesale from Angular's standard routing.&lt;/p&gt;&lt;p&gt;The fact that directives "own" an HTML element but are managed within the
+scope tree allows for such elements to be moved arbitrarily around the document
+or removed from the document altogether while still retaining their connection
+to their original declaration context. This creates some powerful possibilities
+and I'm excited to see what other techniques can come from this capability.&lt;/p&gt;&lt;p&gt;All code snippets within this article are released into the public domain in
+the hope that they will be useful, but it is presented only as prototype code
+and has no warranty of any kind.&lt;/p&gt;&lt;/section&gt;</description><link>http://apparently.me.uk/angularjs-view-specific-sidebars/</link><guid>http://apparently.me.uk/angularjs-view-specific-sidebars/</guid><pubDate>Sun, 14 Sep 2014 00:00:00 +0000</pubDate><dc:creator>Martin Atkins</dc:creator></item><item><title>Protothreads in LLVM IR</title><atom:summary>Implementing stackless threads within LLVM</atom:summary><description>&lt;p&gt;The peak size of the stack for a given thread of execution in a computer
+program is impossible to predict in general, and even when it can be
+predicted (in the absense of recursion and conditional allocation) the
+peak size can be a pretty pessimistic estimate of the actual stack
+requirements.&lt;/p&gt;&lt;p&gt;As a consequence, threading support in modern operating systems, as well as
+application-level threads as implemented by some languages such as Go, tends
+to allocate each thread a pretty large stack. This is a good tradeoff on a
+machine with a virtual memory manager and plenty of address space per process,
+but is unreasonable on a memory-constrained system like a microcontroller.&lt;/p&gt;&lt;p&gt;&lt;em&gt;Protothreads&lt;/em&gt;, or "stackless threads", are a tool for providing multiple
+threads of execution without allocating a separate stack for each. This feat
+is achieved by placing several constraints on the code within the
+thread: blocking is only permitted in the top-level function of the thread,
+the top-level function's local variables cannot be allocated on the stack
+nor persisted in registers, and these "threads" can only yield to others
+at predefined points in the program (co-operative scheduling).&lt;/p&gt;&lt;p&gt;With these to constraints imposed, it is possible to simulate blocking by
+returning control to the caller (a basic scheduler, presumably) after retaining
+a record of where in the function execution should resume on the next call.
+This technique has most commonly been implemented in C via preprocessor macros,
+such as in
+&lt;a href="http://dunkels.com/adam/pt/" target="_blank"&gt;Adam Dunkels' Protothreads Library&lt;/a&gt;. Here is
+a raw, macro-free example using the GCC computed goto extension, which is
+fully general:&lt;/p&gt;&lt;p&gt;Notice that the position is retained in a &lt;tt&gt;static&lt;/tt&gt; variable to ensure that
+its value persists across calls. Any other local variables must also be
+declared as &lt;tt&gt;static&lt;/tt&gt; for this technique to work.&lt;/p&gt;&lt;p&gt;Although clever use of macros allows the details of this technique to be
+somewhat hidden in C, the fact that it is being implemented &lt;em&gt;in spite of&lt;/em&gt;
+the language prevents the result from being fully natural.&lt;/p&gt;&lt;p&gt;However, a hypothetical language that has protothreads as a built-in feature
+can in principle hide the plumbing in a much more robust way, by providing
+native language constructs for yielding and by automatically hoisting all of
+the local variables into global variables.&lt;/p&gt;&lt;p&gt;Such a language would still have to generate something resembling the above
+C code in its backend, however. In that vein, I set about seeing what this
+technique could look like implemented in LLVM assembly, which is a
+somewhat-popular choice of intermediate representation between a language's
+parser and its code generation backend.&lt;/p&gt;&lt;p&gt;Let's dive in.&lt;/p&gt;&lt;section id="data-structures"&gt;&lt;h3&gt;Data Structures&lt;/h3&gt;&lt;p&gt;To implement a basic cooperative scheduler we need to start with a data
+structure representing a thread, and then along with that a queue of threads
+that are ready to run. For simplicity's sake, I combined these two concepts
+together to make a doubly-linked list of runnable threads, whose members
+are of type &lt;tt&gt;%cont&lt;/tt&gt;, which is short for "continuation":&lt;/p&gt;&lt;p&gt;This design is slightly more sophisticated than the C example above since it
+allows for multiple instances of the same thread code to be active at once,
+each with its own "context". The context here is typed as &lt;tt&gt;i8*&lt;/tt&gt; but that
+type is just a placeholder for a pointer to some data structure that's
+constructed from the local variables of the implementation function.&lt;/p&gt;&lt;p&gt;We can wrap around that a straightforward "queue" concept:&lt;/p&gt;&lt;p&gt;In order to simplify management of the linked list, at the expense of some
+non-obvious trickery, the pointer to the queue instance itself -- after a
+bitcast to type &lt;tt&gt;%cont&lt;/tt&gt; -- is used as the "end of list" sentinel. By placing
+the queue structure members in "reverse order", the list manipulation code
+can simply treat the queue as a list item, automatically updating the
+last/first pointers when items are added and removed from the edges of the
+list.&lt;/p&gt;&lt;p&gt;By embedding the linked list pointers inside the continuation structure we
+create the constraint that each continuation can be in only one queue at a
+time, which suffices for this test, since there's only one queue.&lt;/p&gt;&lt;p&gt;Finally, we create the type for the scheduler itself and the singleton global
+instance of it:&lt;/p&gt;&lt;p&gt;As promised, we &lt;tt&gt;bitcast&lt;/tt&gt; the pointer to the queue so LLVM will accept it
+as a pointer to a &lt;tt&gt;%cont&lt;/tt&gt;, and assign it as both the head and tail of the
+list, creating an empty list.&lt;/p&gt;&lt;/section&gt;&lt;section id="queue-management"&gt;&lt;h3&gt;Queue Management&lt;/h3&gt;&lt;p&gt;There are only three operations supported on the ready queue: appending an
+item to it, signalling that it has become ready, and removing an item from
+it, signalling that it has become blocked.&lt;/p&gt;&lt;p&gt;These are just normal linked list operations, although they are a a little
+more verbose than usual when written in LLVM IR, due to the need to explicitly
+dereference all of the structs and pointers:&lt;/p&gt;&lt;p&gt;Our strange handling of the sentinel values pays off here, since the code
+for managing the list "accidentally" updates the head/tail pointers in the
+queue structure when the item being manipulated happens to be at one of the
+ends of the list, just by dereferencing the sentinel pointer that refers
+to the queue.&lt;/p&gt;&lt;/section&gt;&lt;section id="the-scheduler-function"&gt;&lt;h3&gt;The Scheduler Function&lt;/h3&gt;&lt;p&gt;Next up is the scheduler itself. The flow here is pretty simple.
+First we locate the first item in the queue, then we remove it from the queue,
+and then we execute the given implementation function with the state data as
+parameters. Once the queue is empty (signalled by the first item being the
+queue itself), the scheduler returns:&lt;/p&gt;&lt;/section&gt;&lt;section id="thread-implementations"&gt;&lt;h3&gt;Thread Implementations&lt;/h3&gt;&lt;p&gt;Now we just need some thread implementation functions to test with. To keep
+things simple, our thread functions will just loop a certain number of times,
+yielding to the scheduler after each iteration, before finally exiting.
+The final program has two threads, but since their implementations are largely
+identical I'll focus on only one here.&lt;/p&gt;&lt;p&gt;First we need to allocate the global variables that will represent the
+thread's state. In a real compiler the thread's context would be a structure
+type, but to keep things simple in this hand-written LLVM assembly I just
+used a single integer:&lt;/p&gt;&lt;p&gt;The &lt;tt&gt;bitcast&lt;/tt&gt; to &lt;tt&gt;i8*&lt;/tt&gt; is of course unnecessary since the context type
+is already of this type, but it's included to show that in a real
+implementation such a cast would be required.&lt;/p&gt;&lt;p&gt;That just leaves the thread's implementation function:&lt;/p&gt;&lt;p&gt;The &lt;tt&gt;indirectbr&lt;/tt&gt; at the beginning of the function is exactly equivalent
+to the computed &lt;tt&gt;goto&lt;/tt&gt; we used in the original C example, but in this
+case the target is passed as a parameter since static local variables are
+not a concept in LLVM.&lt;/p&gt;&lt;p&gt;The code implementing the yield to the scheduler is worth isolating to better
+see how it works:&lt;/p&gt;&lt;p&gt;We use the &lt;tt&gt;@cont_ready&lt;/tt&gt; function from earlier to place the thread back into
+the ready queue (we have no events to block on here, so we're just giving other
+threads an opportunity to run). The &lt;tt&gt;blockaddress&lt;/tt&gt; expression serves the
+same purpose as the &lt;tt&gt;&amp;amp;&amp;amp;label&lt;/tt&gt; syntax in GCC's computed goto C extension.&lt;/p&gt;&lt;/section&gt;&lt;section id="testing-it-out"&gt;&lt;h3&gt;Testing It Out&lt;/h3&gt;&lt;p&gt;Finally, we just need a little entry point function to kick things off:&lt;/p&gt;&lt;p&gt;Again we need to mark the threads as ready, but this time we make the
+continuation refer to the &lt;tt&gt;begin&lt;/tt&gt; block in each function.&lt;/p&gt;&lt;p&gt;Once translated to native assembly, linked, and executed, the result looks
+something like this:&lt;/p&gt;&lt;pre class='terminal'&gt;Hello
+Sched Loop
+Sched Done
+Sched Loop
+Sched Do
+Thread 1 Start
+Thread 1 Loop
+Sched Loop
+Sched Do
+Thread 2 Start
+Thread 2 Loop
+Sched Loop
+Sched Do
+Thread 1 Loop
+Sched Loop
+Sched Do
+Thread 2 Loop
+Sched Loop
+Sched Do
+Thread 1 Loop
+Thread 1 Exit
+Sched Loop
+Sched Do
+Thread 2 Loop
+Sched Loop
+Sched Do
+Thread 2 Loop
+Thread 2 Exit
+Sched Loop
+Sched Done&lt;/pre&gt;&lt;p&gt;This output (produced by printing some strings that weren't included in the
+above snippets, but are in the full program linked below) shows how each
+run of the scheduler runs a section of code from one of the threads, with
+each of them starting up, looping several times, and then exiting. The
+second thread runs two more iterations than the first before it exits.&lt;/p&gt;&lt;/section&gt;&lt;section id="conclusion"&gt;&lt;h3&gt;Conclusion&lt;/h3&gt;&lt;p&gt;Hand-writing LLVM assembly gets a bit verbose and tedious at times, but this
+example shows that a compiler using LLVM as a backend can implement a basic
+protothread scheduler with only a few modifications to the code generator:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;p&gt;Arrange for thread functions to load/store their local variables through the
+context structure rather than through pointers allocated with &lt;tt&gt;alloca&lt;/tt&gt;.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Ensure that the generated code does not depend on the values in named
+registers persisting across a blocking call.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Insert thread-scheduling calls and extra &lt;tt&gt;ret&lt;/tt&gt; statements into the program
+at points where a thread will yield.&lt;/p&gt;&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;The first of these points does, however, impose an optimization penalty on
+the generated function: usually simple local variables created with &lt;tt&gt;alloca&lt;/tt&gt;
+are turned into simple registers by the &lt;tt&gt;mem2reg&lt;/tt&gt; optimization pass, but
+this optimization is not possible when the local variables are effectively
+global. The resulting code will therefore have many more &lt;tt&gt;load&lt;/tt&gt; and &lt;tt&gt;store&lt;/tt&gt;
+operations than normal, though other optimization passes may help somewhat.&lt;/p&gt;&lt;p&gt;&lt;a href="https://gist.github.com/apparentlymart/5c62e4a794c52939986a" target="_blank"&gt;The full program, and a Makefile to build it&lt;/a&gt;,
+are available for those who would like to study it further or build something
+from it. It's released into the public domain in the hope that it will be
+useful, but with no warranty of quality or fitness for purpose: it's just a
+prototype.&lt;/p&gt;&lt;p&gt;I intend to apply a technique similar to this in my work-in-progress
+programming language &lt;a href="http://martin.atkins.me.uk/alamatic/" target="_blank"&gt;Alamatic&lt;/a&gt;, which
+attempts to bring the power of modern abstractions to the
+limited environment of microcontrollers. It is my hope that protothreads will
+allow for a more natural programming model when dealing with asynchronous
+operations, as well as affording good composability between device driver
+code and application code, while avoiding the need to juggle multiple stacks in
+a small address space.&lt;/p&gt;&lt;/section&gt;</description><link>http://apparently.me.uk/llvm-protothreads/</link><guid>http://apparently.me.uk/llvm-protothreads/</guid><pubDate>Sat, 13 Sep 2014 00:00:00 +0000</pubDate><dc:creator>Martin Atkins</dc:creator></item></channel></rss>

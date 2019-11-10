@@ -1,0 +1,457 @@
+<!doctype html>
+<html amp lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>
+Padstone: Terraform for Software Builds - apparently.me.uk
+</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    
+<link rel="canonical" href="/padstone-terraform-for-deployment/">
+<meta name="description" content="A prototype of using Terraform's core functionality for software builds.">
+
+<meta property="og:title" content="Padstone: Terraform for Software Builds">
+<meta property="og:type" content="article">
+<meta property="og:description" content="A prototype of using Terraform's core functionality for software builds.">
+<meta property="og:site_name" content="apparently.me.uk">
+<link rel="feed" type="application/rss+xml" href="/articles.rss">
+<script type="application/ld+json">
+  {
+  "@context": "http://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Padstone: Terraform for Software Builds",
+  "datePublished": "2015-07-19"
+  }
+</script>
+
+    <meta property="fb:admins" content="509714340" />
+    <meta name="google-site-verification" content="ZzodgjzpqgeNLVSHnRTeHSSoxs9hpDrUJ8BmT1WNvEk" />
+    <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lobster|Raleway:400,600|Inconsolata">
+    <style amp-custom>/* https://www.google.com/fonts#UsePlace:use/Collection:Lobster|Raleway:400,600|Inconsolata */
+@media screen {
+  html {
+    font-size: 12px; } }
+
+@media print {
+  html {
+    font-size: 12px; } }
+
+@media only screen and (min-width: 665px) {
+  html {
+    font-size: 15px; } }
+
+@media only screen and (min-width: 940px) {
+  html {
+    font-size: 18px; } }
+
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  line-height: 1.61803rem;
+  font-family: Raleway, sans-serif;
+  font-weight: 400;
+  background: #f4f6f8;
+  color: #333; }
+  @media print {
+    html {
+      background: #ffffff;
+      color: #000000; } }
+html, body {
+  margin: 0;
+  padding: 0; }
+
+body {
+  padding: 0 1.61803rem;
+  background: transparent; }
+
+a {
+  text-decoration: none;
+  color: #960115;
+  cursor: pointer; }
+
+#everything {
+  max-width: 66ch;
+  margin: 0 auto; }
+
+header {
+  height: 6.47214rem;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  cursor: default; }
+  header h1 {
+    font-family: "Lobster", sans-serif;
+    font-weight: 400;
+    line-height: 4.8541rem;
+    font-size: 3rem;
+    margin: 0;
+    margin-top: 0.5rem;
+    float: left; }
+  header p {
+    margin: 0;
+    margin-top: 2.42705rem;
+    padding-top: 0.15rem;
+    float: right;
+    font-size: 2em;
+    margin-left: 1.61803rem; }
+  @media print {
+    header {
+      display: none; } }
+#content {
+  margin-top: -0.3rem; }
+  #content.ng-enter {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 0; }
+    #content.ng-enter.ng-enter-active {
+      opacity: 1; }
+  #content.ng-leave {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 1; }
+    #content.ng-leave.ng-leave-active {
+      opacity: 0; }
+  #content p, #content h2, #content h3, #content li, #content ul, #content ol, #content dl, #content dt {
+    margin: 0;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: inherit; }
+  #content .article-masthead h2 {
+    font-size: 3rem;
+    line-height: 4.8541rem;
+    text-align: center;
+    margin: 0 1.61803rem;
+    margin-top: 1.61803rem;
+    font-weight: 600; }
+    @media only screen and (max-width: 330px) {
+      #content .article-masthead h2 {
+        font-size: 2rem;
+        line-height: 3.23607rem; } }
+    #content .article-masthead h2 a {
+      color: inherit; }
+      #content .article-masthead h2 a:hover {
+        text-decoration: none;
+        color: #960115; }
+  #content .article-masthead time, #content .article-masthead .article-subhed {
+    text-align: center;
+    margin-bottom: 3.33607rem;
+    display: block;
+    margin-top: 0.80902rem; }
+  @media print {
+    #content .article-masthead {
+      margin-top: 3.23607rem;
+      margin-bottom: 3.23607rem; } }
+  #content .article-part-nav {
+    margin-top: 3.33607rem;
+    margin-bottom: 3.33607rem; }
+  #content h3 {
+    font-size: 2rem;
+    line-height: 3.23607rem;
+    margin-top: 3.23607rem;
+    margin-bottom: 1.41803rem;
+    padding-top: 0.2rem;
+    font-weight: 600;
+    page-break-after: avoid; }
+  #content p {
+    font-size: 1rem;
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    text-align: justify;
+    widows: 3;
+    orphans: 3; }
+  #content li {
+    margin-left: 1.61803rem; }
+  #content ul, #content ol {
+    margin-bottom: 1.61803rem; }
+  #content code, #content tt, #content pre, #content kbd {
+    font-family: Inconsolata, monospace;
+    font-weight: 400;
+    line-height: 1.61803rem; }
+  #content code, #content tt, #content kbd {
+    line-height: 0; }
+  #content .code, #content .terminal {
+    padding: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    background: #E9EBED;
+    overflow-y: auto;
+    widows: 5;
+    orphans: 5; }
+    @media print {
+      #content .code, #content .terminal {
+        padding: 0;
+        margin-top: 0;
+        margin-bottom: 1.61803rem;
+        margin-left: 0;
+        margin-right: 0;
+        background: inherit;
+        color: inherit;
+        page-break-before: avoid; } }
+    #content .code .comment, #content .terminal .comment {
+      color: #7f7f7f; }
+      @media print {
+        #content .code .comment, #content .terminal .comment {
+          color: #333333; } }
+    #content .code .keyword, #content .terminal .keyword {
+      color: #960115; }
+    #content .code .string, #content .terminal .string {
+      color: #CF001C; }
+    #content .code .name, #content .terminal .name {
+      color: #445588; }
+  #content .terminal {
+    background: #333333;
+    color: #E9EBED; }
+    @media print {
+      #content .terminal {
+        color: inherit;
+        background: inherit; } }
+  #content aside {
+    padding-top: calc(1.61803rem - 1px);
+    padding-left: 1.61803rem;
+    padding-right: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: calc(1.61803rem - 1px);
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    border-bottom: 1px dashed #333333;
+    border-top: 1px dashed #333333; }
+    #content aside.note > :first-child::before {
+      content: "Note: ";
+      font-weight: bold; }
+  #content strong, #content b {
+    font-weight: 600; }
+  #content ol.parts {
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem; }
+  #content ol.parts li {
+    list-style: none;
+    margin: 0;
+    padding: 0; }
+    #content ol.parts li.current {
+      font-weight: bold; }
+  #content .card {
+    margin-bottom: 1.09994rem; }
+    #content .card .carddate {
+      float: right;
+      padding-top: 0.80902rem; }
+    #content .card .cardtitle {
+      line-height: 2.42705rem;
+      font-size: 1.5rem;
+      padding-top: 0.24271rem; }
+    #content .card .cardsummary {
+      margin-top: -0.24271rem; }
+</style>
+    <script async src="https://cdn.ampproject.org/v0.js"></script>
+    <script async custom-element="amp-analytics" src="https://cdn.ampproject.org/v0/amp-analytics-0.1.js"></script>
+</head>
+<body>
+
+<div id="everything">
+
+  <header>
+    <div id="titleblurb">
+    <h1><a href="/">apparently.me.uk</a></h1>
+    <p>By <a href="http://martin.atkins.me.uk/" rel="me author">Martin Atkins</a></p>
+    </div>
+  </header>
+
+  <section id="content">
+
+    
+<article class="full h-entry" itemscope itemtype="http://schema.org/Article">
+  <div class="article-masthead">
+    <h2 itemprop="name" class="p-name">Padstone: Terraform for Software Builds</h2>
+    <time datetime="2015-07-19" itemprop="datePublished" class="dt-published">Jul 19 2015</time>
+  </div>
+  <div class="article-body e-content" itemprop="articleBody">
+    <p><a href="http://packer.io/" target="_blank">Packer</a> and <a href="https://terraform.io/" target="_blank">Terraform</a> are the products <a href="https://hashicorp.com/" target="_blank">HashiCorp</a> recommends for building and deploying
+applications in the modern datacenter, but these two tools have some differences and
+rough edges that mean they don't tessellate as well as they could. In this article
+I'll talk about a prototype I built that uses the core of Terraform to create a Packer
+replacement, creating a more flexible tool that has a much better story for integration
+with Terraform for deployment.</p><section id="the-hashicorp-stack"><h3>The HashiCorp Stack</h3><p>Modern web applications are rarely composed of just a managed application server
+and a database, but are rather composed of a wide array of different services: CDNs
+and load balancers, smart DNS servers, externally-managed storage and caching
+infrastructure, outsourced mail servers, and so on and so on.</p><p>Traditional application deployment most commonly makes a sharp distinction between
+the the deployment of code and the management of the infrastructure on which the
+code runs and which the code uses. Tools like Puppet, Chef and cfengine are primarily
+focused on automating the configuration of particular servers, with separate tooling
+like Foreman for bootstrapping those servers and, in many cases, home-grown scripts
+doing the actual deployment of applications.</p><p><a href="https://terraform.io/" target="_blank">Terraform</a> is an open source project by <a href="https://hashicorp.com/" target="_blank">HashiCorp</a> that takes a new angle on
+cloud infrastructure and application deployment. It takes the declarative resource
+definition style of Puppet but applies it to the definition of resources that
+can be created, updated and deleted via network APIs. In a world of cloud-hosted
+infrastructure, that can include everything from DNS records to virtual machines to
+git repositories. While Terraform's current set of resources is weighted towards
+infrastructure-as-a-service platforms, its model is suitably generic — just
+Create, Read, Update and Delete operations — that it can be readily applied to
+just about anything that could be reasonably modelled as a REST API resource.</p><p>As well as a resource-oriented configuration language for API-managed objects,
+Terraform's other key feature is its concept of <em>state</em>, which allows Terraform not
+only to create resources but to keep track of previously-created resources and
+update and delete them as needed. The current state of one deployment can be used
+as an input to another, so as well as <em>managing</em> infrastructure Terraform can
+also be seen as a way of <em>publishing</em> and <em>sharing</em> infrastructure between
+teams within an organization.</p><p>Deploying in terms of API-managed resources works best when applications
+are <em>built</em> in terms of such services. One certainly <em>could</em> provision a
+stock Ubuntu EC2 instance with Terraform and then from then on install
+software on it via a traditional "copy-files-flip-symlink-restart" workflow,
+if we produce an "Amazon Machine Image" (AMI) with the application already
+installed then we can have Terraform deploy it directly, and benefit from
+the fast startup time that comes from having done most of the setup work
+at application build time rather than at deploy time.</p><p>HashiCorp's answer to this need is <a href="http://packer.io/" target="_blank">Packer</a>, a tool which in fact predates
+Terraform and is designed to automate the creation of machine images for
+various cloud infrastructure platforms. Its model is pretty simple:</p><ul><li><p>A <em>builder</em> spins up an environment based on an existing image and prepares
+that environment so Packer can interact with it.</p></li><li><p>One or more <em>provisioners</em> communicate with the created environment to
+customize it in arbitrary ways. For example, a <tt>chef-solo</tt> provisioner
+allows Chef to be used to apply changes to the machine.</p></li><li><p>The builder then captures some kind of image of the build environment,
+which becomes the <em>artifact</em> of the build.</p></li></ul><p>When applied to AWS, the builder creates an EC2 instance, the provisioners
+interact with it over SSH, and then the final artifact is an AMI that can
+be used as the basis for new instances created at deployment time.</p></section><section id="putting-the-pieces-together"><h3>Putting the Pieces Together</h3><p>Perhaps due to it predating Terraform by some years, the interopability between
+Packer and Terraform is unfortunately rather limited. If you wish to move beyond
+manually pasting the ids of the generated artifacts into your Terraform
+configuration, you're left either with parsing Packer's rather awkward (but
+certainly machine-readable) CSV output, or running Packer inside HashiCorp's
+<a href="https://atlas.hashicorp.com/" target="_blank">Atlas</a> platform. Either way it doesn't feel completely natural, and that's rather
+unfortunate for two tools that supposedly belong to the same family.</p><p>Along with the frustration of the poor tessellation of these tools, I also
+couldn't shake the idea that Packer's high-level capabilities are pretty close
+to being a subset of Terraform's capabilities.</p></section><section id="build-vs-deploy-not-so-different"><h3>Build vs. Deploy: Not so different?</h3><p>When we put aside various implementation details and the set of resources that happen to
+be implemented in each codebase today, there are only a few minor differences
+between the build process afforded by Packer and the deployment process afforded
+by Terraform:</p><ul><li><p>Terraform manages a set of long-lived resources across multiple incremental deployments.
+Packer produces a completely distinct set of resources for each run.</p></li><li><p>Terraform creates and updates resources to move them towards a configured end state.
+Packer provisions certain resources only to assist in the build process, destroying them
+once the process is complete.</p></li><li><p>Terraform keeps track of the resources it's created, so they can be updated and deleted
+by later runs. Packer cedes control of the resources it created as soon as it completes,
+leaving the user to do manual cleanup.</p></li></ul><p>The first two of these are legitimate and fundamental differences in purpose between the build
+and deployment phases. The last of these is arguably a limitation of Packer: though there is little
+reason to <em>alter</em> the artifacts of a build, it would actually be rather useful to be able to
+automatically destroy resources created for older versions of an app that are no longer needed
+in order to reduce storage costs.</p><p>The first two differences also apply to the use of Puppet or Chef as a one-off image provisioning
+tool vs. their use for ongoing management of a long-lived machine. If these tools can be applied
+to both problems, and if Terraform's configuration is at a similar level of expressive power
+to Puppet's, perhaps we could apply the resource management guts of Terraform to both problems
+also.</p></section><section id="padstone-a-terraform-build-prototype"><h3>Padstone: A Terraform Build Prototype</h3><p>I created <a href="https://github.com/apparentlymart/padstone" target="_blank">Padstone</a> to explore the idea of applying Terraform's model to the problem of building
+application artifacts. Padstone is a small command line tool that puts a new, build-oriented façade
+on the underlying mechanisms of Terraform.</p><p>The most readily-obvious difference between Padstone and Terraform is that the set of subcommands
+it accepts are more oriented around an application build workflow:</p><pre class='terminal'>$ padstone --help
+Usage:
+  padstone [OPTIONS] &lt;build | destroy | publish&gt;
+
+Help Options:
+  -h, --help  Show this help message
+
+Available commands:
+  build    Run a build and produce a state file
+  destroy  Destroy the results of a build
+  publish  Publish a state file to remote storage</pre><section id="executing-builds-with-padstone"><h4>Executing builds with Padstone</h4><p>The <tt>padstone build</tt> command expects as arguments:</p><ul><li><p>a path to a directory containing Terraform-like configuation files (named with a <tt>.pad</tt>
+extension, a superset of standard Terraform config as we will see in a moment)</p></li><li><p>a path at which a state file will be created to record the results of the build process</p></li><li><p>zero or more values to populate the user variables defined in the configuration</p></li></ul><p>Much like <tt>terraform apply</tt>, <tt>padstone build</tt> uses Terraform providers and provisioners to
+create various resources and then records the state of these resources in a JSON state file.
+<em>Unlike</em> Terraform, Padstone always starts with an empty state and thus creates a fresh set of
+resources for each run, thus addressing the first of our differences from the section above.
+One down, one to go!</p></section><section id="temporary-build-infrastructure"><h4>Temporary Build Infrastructure</h4><p>To address the second of the differences I noted, Padstone extends the Terraform configuration
+model with the concept of a <em>temporary resource</em>. A temporary resource is created the same way
+as any other resource, except that <tt>padstone build</tt> will destroy all of the temporary resources
+before it returns.</p><p>At the time of writing, Terraform lacks a resource type for creating an AMI, which is the main
+purpose of the AWS family of builders in Packer. However, AMIs can be created via the API just
+like any other resource, so it's a simple matter to extend Terraform to support these API functions,
+as I did in <a href="https://github.com/hashicorp/terraform/pull/2784" target="_blank">Terraform pull request #2784</a>. I used a build of Terraform with that patch applied
+in order to illustrate how Padstone can achieve the same result as Packer.</p><p>The following Padstone config builds an AMI via a similar process to that used by Packer's
+<tt>amazon-ebs</tt> builder and Chef provisioner:</p><p>We can put this config in <tt>webserver/ami.pad</tt> and then create an AMI for a particular application
+with Padstone as follows:</p><pre class='terminal'>$ padstone build webserver/ webserver-0.0.1.tfstate version=0.0.1 \
+       vpc_id=vpc-xxxxxxxx subnet-id=subnet-xxxxxxxx
+
+[aws_key_pair.provision] Creating...
+[aws_security_group.ssh] Creating...
+[aws_instance.base] Creating...
+[aws_instance.base] Provisioning...
+[aws_ami_from_instance.image] Creating...
+--- Build succeeded! Now destroying temporary resources... ---
+[aws_instance.base] Destroying...
+[aws_key_pair.provision] Destroying...
+[aws_security_group.ssh] Destroying...
+
+Outputs:
+- version = 0.0.1
+- ami_id = ami-xxxxxxxx</pre><p>With this extra step of destroying the temporary resources we resolve the second difference between
+deploy and build. Throughout the process Padstone maintains the current resource state in
+the <tt>webserver-0.0.1.tfstate</tt>, and so once the process is complete it contains just the outputs
+and the non-temporary resources.</p></section><section id="cleaning-up"><h4>Cleaning Up</h4><p>As noted above, Packer provides no automatic way to destroy the resources it created once they are
+no longer needed. By writing out a state file, Padstone can overcome this limitation of Packer:</p><pre class='terminal'>$ padstone destroy webserver/ webserver-0.0.1.tfstate version=0.0.1 \
+       vpc_id=vpc-xxxxxxxx subnet-id=subnet-xxxxxxxx
+
+[aws_ami_from_instance.image] Destroying...
+All resources destroyed</pre><p>All that's required to benefit from this is to record somewhere the state file for each version.
+For example, if the build process is being orchestrated by Jenkins then its ability to capture
+files as artifacts could be used to attach the state to the Jenkins build result.</p></section><section id="publishing-artifacts"><h4>Publishing Artifacts</h4><p>The original motivation for Padstone was to create a build tool that integrates well with Terraform.
+This is achieved by publishing the state file that describes the created resources,
+so that it can be imported into a Terraform deployment using the <tt>terraform_remote_state</tt>
+resource:</p><pre class='terminal'>$ padstone publish webserver-0.0.1.tfstate s3 \
+       region=us-west-2 bucket=padstone-results \
+       key=exampleapp/webserver-0.0.1.tfstate</pre><p>As long as whoever is running the deployment has access to the same S3 bucket, this state can
+be used by replicating the same settings in the Terraform configuration:</p><p>Of course, since all Terraform resources are available in Padstone it is also possible for one
+Padstone configuration to consume resources from another, allowing the build process get the same
+collaboration benefits as Terraform brings to the deployment process.</p></section><section id="how-padstone-works"><h4>How Padstone Works</h4><p>Padstone re-uses a <em>lot</em> of code from Terraform. It has its own top-level configuration parser
+in order to support the temporary resources, and of course the implementation of its unique
+commands, but really all it's doing is transforming its input into something that the Terraform
+core can consume and then running the same old "apply" and "destroy" steps.</p><p>The concept of temporary resources is implemented via some trickery: Terraform's dependency resolver
+wouldn't normally allow a resource to be destroyed without also destroying its dependents, but
+Padstone is able to break this rule by splitting the internal state data structure in two,
+maintaining the temporaries and the results as separate manifests. The temporaries can then be
+cleaned up by destroying the state where the results are excluded, causing Terraform to temporarily
+"forget" that the result resources exist.</p><p>The full details are, of course, in <a href="https://github.com/apparentlymart/padstone" target="_blank">the code</a>.</p></section></section><section id="where-to-from-here"><h3>Where to from here?</h3><p>In its current state, Padstone is just a prototype and far from ready to use. Although it's shown
+that there's potential for a superior solution compared to Packer, the set of resources supported
+in today's Terraform does not include all of the items that Packer can produce.</p><p>However, with the right set of Terraform resources Padstone could push beyond Packer's narrow focus
+on machine images to many other per-app-version resource types. For example:</p><ul><li><p>A resource for creating objects in S3 buckets could be used to distribute arbitrary files, like
+library archives for use in other builds, or application archives to deploy with AWS OpsWorks.</p></li><li><p>A provider for <a href="https://www.fastly.com/" target="_blank">Fastly</a> could exploit the concept of configuration versions that's built in to
+their API in order to push new configurations at build time and simply activate them at
+deploy time.</p></li><li><p>Padstone could be used to create a separate set of EC2 instances for each application version,
+and then have Terraform manage only the load balancer in front of them to support quick rollback
+to the still-running older version in the event of issues. The instances for each version can
+then have their own independent lifecycle. Similar thinking could apply to any other kind of
+resource that's deployed behind some sort of switching layer that allows backend resource
+selections to change quickly.</p></li><li><p>In principle, Padstone could benefit from Terraform providers that manipulate local resources
+on the system where Padstone is running. This is not appropriate for standard Terraform since
+those resources would usually not be available to other users of the created state, but Padstone
+could use them as <em>temporary</em> resources to assist in the creation of a non-local result resource,
+such as running VirtualBox locally to create a machine image that is ultimately upladed to S3,
+or registered in <a href="https://atlas.hashicorp.com/" target="_blank">Atlas</a> as a shared Vagrant box.</p></li></ul><p>At the moment I have no strong wish to develop and maintain a competitor to Packer. Rather I'm
+sharing this proof-of-concept in the hope of stimulating a discussion about ways in which these
+problems could be solved in a more integrated, flexible manner by the "HashiCorp stack". I feel
+that such a project would be far more successful if lead and coordinated by a team whose full
+time job is creating DevOps tools. Never say never, though!</p></section>
+  </div>
+</article>
+
+
+  </section>
+
+  </div>
+
+</div>
+
+<amp-analytics type="googleanalytics" id="analytics1">
+<script type="application/json">
+{
+  "vars": {
+    "account": "UA-3654925-3"
+  },
+  "triggers": {
+    "trackPageview": {
+      "on": "visible",
+      "request": "pageview"
+    }
+  }
+}
+</script>
+</amp-analytics>
+</body>
+</html>

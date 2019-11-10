@@ -1,0 +1,438 @@
+<!doctype html>
+<html amp lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>
+Protothreads in LLVM IR - apparently.me.uk
+</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    
+<link rel="canonical" href="/llvm-protothreads/">
+<meta name="description" content="Implementing stackless threads within LLVM">
+
+<meta property="og:title" content="Protothreads in LLVM IR">
+<meta property="og:type" content="article">
+<meta property="og:description" content="Implementing stackless threads within LLVM">
+<meta property="og:site_name" content="apparently.me.uk">
+<link rel="feed" type="application/rss+xml" href="/articles.rss">
+<script type="application/ld+json">
+  {
+  "@context": "http://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Protothreads in LLVM IR",
+  "datePublished": "2014-09-13"
+  }
+</script>
+
+    <meta property="fb:admins" content="509714340" />
+    <meta name="google-site-verification" content="ZzodgjzpqgeNLVSHnRTeHSSoxs9hpDrUJ8BmT1WNvEk" />
+    <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lobster|Raleway:400,600|Inconsolata">
+    <style amp-custom>/* https://www.google.com/fonts#UsePlace:use/Collection:Lobster|Raleway:400,600|Inconsolata */
+@media screen {
+  html {
+    font-size: 12px; } }
+
+@media print {
+  html {
+    font-size: 12px; } }
+
+@media only screen and (min-width: 665px) {
+  html {
+    font-size: 15px; } }
+
+@media only screen and (min-width: 940px) {
+  html {
+    font-size: 18px; } }
+
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  line-height: 1.61803rem;
+  font-family: Raleway, sans-serif;
+  font-weight: 400;
+  background: #f4f6f8;
+  color: #333; }
+  @media print {
+    html {
+      background: #ffffff;
+      color: #000000; } }
+html, body {
+  margin: 0;
+  padding: 0; }
+
+body {
+  padding: 0 1.61803rem;
+  background: transparent; }
+
+a {
+  text-decoration: none;
+  color: #960115;
+  cursor: pointer; }
+
+#everything {
+  max-width: 66ch;
+  margin: 0 auto; }
+
+header {
+  height: 6.47214rem;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  cursor: default; }
+  header h1 {
+    font-family: "Lobster", sans-serif;
+    font-weight: 400;
+    line-height: 4.8541rem;
+    font-size: 3rem;
+    margin: 0;
+    margin-top: 0.5rem;
+    float: left; }
+  header p {
+    margin: 0;
+    margin-top: 2.42705rem;
+    padding-top: 0.15rem;
+    float: right;
+    font-size: 2em;
+    margin-left: 1.61803rem; }
+  @media print {
+    header {
+      display: none; } }
+#content {
+  margin-top: -0.3rem; }
+  #content.ng-enter {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 0; }
+    #content.ng-enter.ng-enter-active {
+      opacity: 1; }
+  #content.ng-leave {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 1; }
+    #content.ng-leave.ng-leave-active {
+      opacity: 0; }
+  #content p, #content h2, #content h3, #content li, #content ul, #content ol, #content dl, #content dt {
+    margin: 0;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: inherit; }
+  #content .article-masthead h2 {
+    font-size: 3rem;
+    line-height: 4.8541rem;
+    text-align: center;
+    margin: 0 1.61803rem;
+    margin-top: 1.61803rem;
+    font-weight: 600; }
+    @media only screen and (max-width: 330px) {
+      #content .article-masthead h2 {
+        font-size: 2rem;
+        line-height: 3.23607rem; } }
+    #content .article-masthead h2 a {
+      color: inherit; }
+      #content .article-masthead h2 a:hover {
+        text-decoration: none;
+        color: #960115; }
+  #content .article-masthead time, #content .article-masthead .article-subhed {
+    text-align: center;
+    margin-bottom: 3.33607rem;
+    display: block;
+    margin-top: 0.80902rem; }
+  @media print {
+    #content .article-masthead {
+      margin-top: 3.23607rem;
+      margin-bottom: 3.23607rem; } }
+  #content .article-part-nav {
+    margin-top: 3.33607rem;
+    margin-bottom: 3.33607rem; }
+  #content h3 {
+    font-size: 2rem;
+    line-height: 3.23607rem;
+    margin-top: 3.23607rem;
+    margin-bottom: 1.41803rem;
+    padding-top: 0.2rem;
+    font-weight: 600;
+    page-break-after: avoid; }
+  #content p {
+    font-size: 1rem;
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    text-align: justify;
+    widows: 3;
+    orphans: 3; }
+  #content li {
+    margin-left: 1.61803rem; }
+  #content ul, #content ol {
+    margin-bottom: 1.61803rem; }
+  #content code, #content tt, #content pre, #content kbd {
+    font-family: Inconsolata, monospace;
+    font-weight: 400;
+    line-height: 1.61803rem; }
+  #content code, #content tt, #content kbd {
+    line-height: 0; }
+  #content .code, #content .terminal {
+    padding: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    background: #E9EBED;
+    overflow-y: auto;
+    widows: 5;
+    orphans: 5; }
+    @media print {
+      #content .code, #content .terminal {
+        padding: 0;
+        margin-top: 0;
+        margin-bottom: 1.61803rem;
+        margin-left: 0;
+        margin-right: 0;
+        background: inherit;
+        color: inherit;
+        page-break-before: avoid; } }
+    #content .code .comment, #content .terminal .comment {
+      color: #7f7f7f; }
+      @media print {
+        #content .code .comment, #content .terminal .comment {
+          color: #333333; } }
+    #content .code .keyword, #content .terminal .keyword {
+      color: #960115; }
+    #content .code .string, #content .terminal .string {
+      color: #CF001C; }
+    #content .code .name, #content .terminal .name {
+      color: #445588; }
+  #content .terminal {
+    background: #333333;
+    color: #E9EBED; }
+    @media print {
+      #content .terminal {
+        color: inherit;
+        background: inherit; } }
+  #content aside {
+    padding-top: calc(1.61803rem - 1px);
+    padding-left: 1.61803rem;
+    padding-right: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: calc(1.61803rem - 1px);
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    border-bottom: 1px dashed #333333;
+    border-top: 1px dashed #333333; }
+    #content aside.note > :first-child::before {
+      content: "Note: ";
+      font-weight: bold; }
+  #content strong, #content b {
+    font-weight: 600; }
+  #content ol.parts {
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem; }
+  #content ol.parts li {
+    list-style: none;
+    margin: 0;
+    padding: 0; }
+    #content ol.parts li.current {
+      font-weight: bold; }
+  #content .card {
+    margin-bottom: 1.09994rem; }
+    #content .card .carddate {
+      float: right;
+      padding-top: 0.80902rem; }
+    #content .card .cardtitle {
+      line-height: 2.42705rem;
+      font-size: 1.5rem;
+      padding-top: 0.24271rem; }
+    #content .card .cardsummary {
+      margin-top: -0.24271rem; }
+</style>
+    <script async src="https://cdn.ampproject.org/v0.js"></script>
+    <script async custom-element="amp-analytics" src="https://cdn.ampproject.org/v0/amp-analytics-0.1.js"></script>
+</head>
+<body>
+
+<div id="everything">
+
+  <header>
+    <div id="titleblurb">
+    <h1><a href="/">apparently.me.uk</a></h1>
+    <p>By <a href="http://martin.atkins.me.uk/" rel="me author">Martin Atkins</a></p>
+    </div>
+  </header>
+
+  <section id="content">
+
+    
+<article class="full h-entry" itemscope itemtype="http://schema.org/Article">
+  <div class="article-masthead">
+    <h2 itemprop="name" class="p-name">Protothreads in LLVM IR</h2>
+    <time datetime="2014-09-13" itemprop="datePublished" class="dt-published">Sep 13 2014</time>
+  </div>
+  <div class="article-body e-content" itemprop="articleBody">
+    <p>The peak size of the stack for a given thread of execution in a computer
+program is impossible to predict in general, and even when it can be
+predicted (in the absense of recursion and conditional allocation) the
+peak size can be a pretty pessimistic estimate of the actual stack
+requirements.</p><p>As a consequence, threading support in modern operating systems, as well as
+application-level threads as implemented by some languages such as Go, tends
+to allocate each thread a pretty large stack. This is a good tradeoff on a
+machine with a virtual memory manager and plenty of address space per process,
+but is unreasonable on a memory-constrained system like a microcontroller.</p><p><em>Protothreads</em>, or "stackless threads", are a tool for providing multiple
+threads of execution without allocating a separate stack for each. This feat
+is achieved by placing several constraints on the code within the
+thread: blocking is only permitted in the top-level function of the thread,
+the top-level function's local variables cannot be allocated on the stack
+nor persisted in registers, and these "threads" can only yield to others
+at predefined points in the program (co-operative scheduling).</p><p>With these to constraints imposed, it is possible to simulate blocking by
+returning control to the caller (a basic scheduler, presumably) after retaining
+a record of where in the function execution should resume on the next call.
+This technique has most commonly been implemented in C via preprocessor macros,
+such as in
+<a href="http://dunkels.com/adam/pt/" target="_blank">Adam Dunkels' Protothreads Library</a>. Here is
+a raw, macro-free example using the GCC computed goto extension, which is
+fully general:</p><p>Notice that the position is retained in a <tt>static</tt> variable to ensure that
+its value persists across calls. Any other local variables must also be
+declared as <tt>static</tt> for this technique to work.</p><p>Although clever use of macros allows the details of this technique to be
+somewhat hidden in C, the fact that it is being implemented <em>in spite of</em>
+the language prevents the result from being fully natural.</p><p>However, a hypothetical language that has protothreads as a built-in feature
+can in principle hide the plumbing in a much more robust way, by providing
+native language constructs for yielding and by automatically hoisting all of
+the local variables into global variables.</p><p>Such a language would still have to generate something resembling the above
+C code in its backend, however. In that vein, I set about seeing what this
+technique could look like implemented in LLVM assembly, which is a
+somewhat-popular choice of intermediate representation between a language's
+parser and its code generation backend.</p><p>Let's dive in.</p><section id="data-structures"><h3>Data Structures</h3><p>To implement a basic cooperative scheduler we need to start with a data
+structure representing a thread, and then along with that a queue of threads
+that are ready to run. For simplicity's sake, I combined these two concepts
+together to make a doubly-linked list of runnable threads, whose members
+are of type <tt>%cont</tt>, which is short for "continuation":</p><p>This design is slightly more sophisticated than the C example above since it
+allows for multiple instances of the same thread code to be active at once,
+each with its own "context". The context here is typed as <tt>i8*</tt> but that
+type is just a placeholder for a pointer to some data structure that's
+constructed from the local variables of the implementation function.</p><p>We can wrap around that a straightforward "queue" concept:</p><p>In order to simplify management of the linked list, at the expense of some
+non-obvious trickery, the pointer to the queue instance itself -- after a
+bitcast to type <tt>%cont</tt> -- is used as the "end of list" sentinel. By placing
+the queue structure members in "reverse order", the list manipulation code
+can simply treat the queue as a list item, automatically updating the
+last/first pointers when items are added and removed from the edges of the
+list.</p><p>By embedding the linked list pointers inside the continuation structure we
+create the constraint that each continuation can be in only one queue at a
+time, which suffices for this test, since there's only one queue.</p><p>Finally, we create the type for the scheduler itself and the singleton global
+instance of it:</p><p>As promised, we <tt>bitcast</tt> the pointer to the queue so LLVM will accept it
+as a pointer to a <tt>%cont</tt>, and assign it as both the head and tail of the
+list, creating an empty list.</p></section><section id="queue-management"><h3>Queue Management</h3><p>There are only three operations supported on the ready queue: appending an
+item to it, signalling that it has become ready, and removing an item from
+it, signalling that it has become blocked.</p><p>These are just normal linked list operations, although they are a a little
+more verbose than usual when written in LLVM IR, due to the need to explicitly
+dereference all of the structs and pointers:</p><p>Our strange handling of the sentinel values pays off here, since the code
+for managing the list "accidentally" updates the head/tail pointers in the
+queue structure when the item being manipulated happens to be at one of the
+ends of the list, just by dereferencing the sentinel pointer that refers
+to the queue.</p></section><section id="the-scheduler-function"><h3>The Scheduler Function</h3><p>Next up is the scheduler itself. The flow here is pretty simple.
+First we locate the first item in the queue, then we remove it from the queue,
+and then we execute the given implementation function with the state data as
+parameters. Once the queue is empty (signalled by the first item being the
+queue itself), the scheduler returns:</p></section><section id="thread-implementations"><h3>Thread Implementations</h3><p>Now we just need some thread implementation functions to test with. To keep
+things simple, our thread functions will just loop a certain number of times,
+yielding to the scheduler after each iteration, before finally exiting.
+The final program has two threads, but since their implementations are largely
+identical I'll focus on only one here.</p><p>First we need to allocate the global variables that will represent the
+thread's state. In a real compiler the thread's context would be a structure
+type, but to keep things simple in this hand-written LLVM assembly I just
+used a single integer:</p><p>The <tt>bitcast</tt> to <tt>i8*</tt> is of course unnecessary since the context type
+is already of this type, but it's included to show that in a real
+implementation such a cast would be required.</p><p>That just leaves the thread's implementation function:</p><p>The <tt>indirectbr</tt> at the beginning of the function is exactly equivalent
+to the computed <tt>goto</tt> we used in the original C example, but in this
+case the target is passed as a parameter since static local variables are
+not a concept in LLVM.</p><p>The code implementing the yield to the scheduler is worth isolating to better
+see how it works:</p><p>We use the <tt>@cont_ready</tt> function from earlier to place the thread back into
+the ready queue (we have no events to block on here, so we're just giving other
+threads an opportunity to run). The <tt>blockaddress</tt> expression serves the
+same purpose as the <tt>&amp;&amp;label</tt> syntax in GCC's computed goto C extension.</p></section><section id="testing-it-out"><h3>Testing It Out</h3><p>Finally, we just need a little entry point function to kick things off:</p><p>Again we need to mark the threads as ready, but this time we make the
+continuation refer to the <tt>begin</tt> block in each function.</p><p>Once translated to native assembly, linked, and executed, the result looks
+something like this:</p><pre class='terminal'>Hello
+Sched Loop
+Sched Done
+Sched Loop
+Sched Do
+Thread 1 Start
+Thread 1 Loop
+Sched Loop
+Sched Do
+Thread 2 Start
+Thread 2 Loop
+Sched Loop
+Sched Do
+Thread 1 Loop
+Sched Loop
+Sched Do
+Thread 2 Loop
+Sched Loop
+Sched Do
+Thread 1 Loop
+Thread 1 Exit
+Sched Loop
+Sched Do
+Thread 2 Loop
+Sched Loop
+Sched Do
+Thread 2 Loop
+Thread 2 Exit
+Sched Loop
+Sched Done</pre><p>This output (produced by printing some strings that weren't included in the
+above snippets, but are in the full program linked below) shows how each
+run of the scheduler runs a section of code from one of the threads, with
+each of them starting up, looping several times, and then exiting. The
+second thread runs two more iterations than the first before it exits.</p></section><section id="conclusion"><h3>Conclusion</h3><p>Hand-writing LLVM assembly gets a bit verbose and tedious at times, but this
+example shows that a compiler using LLVM as a backend can implement a basic
+protothread scheduler with only a few modifications to the code generator:</p><ul><li><p>Arrange for thread functions to load/store their local variables through the
+context structure rather than through pointers allocated with <tt>alloca</tt>.</p></li><li><p>Ensure that the generated code does not depend on the values in named
+registers persisting across a blocking call.</p></li><li><p>Insert thread-scheduling calls and extra <tt>ret</tt> statements into the program
+at points where a thread will yield.</p></li></ul><p>The first of these points does, however, impose an optimization penalty on
+the generated function: usually simple local variables created with <tt>alloca</tt>
+are turned into simple registers by the <tt>mem2reg</tt> optimization pass, but
+this optimization is not possible when the local variables are effectively
+global. The resulting code will therefore have many more <tt>load</tt> and <tt>store</tt>
+operations than normal, though other optimization passes may help somewhat.</p><p><a href="https://gist.github.com/apparentlymart/5c62e4a794c52939986a" target="_blank">The full program, and a Makefile to build it</a>,
+are available for those who would like to study it further or build something
+from it. It's released into the public domain in the hope that it will be
+useful, but with no warranty of quality or fitness for purpose: it's just a
+prototype.</p><p>I intend to apply a technique similar to this in my work-in-progress
+programming language <a href="http://martin.atkins.me.uk/alamatic/" target="_blank">Alamatic</a>, which
+attempts to bring the power of modern abstractions to the
+limited environment of microcontrollers. It is my hope that protothreads will
+allow for a more natural programming model when dealing with asynchronous
+operations, as well as affording good composability between device driver
+code and application code, while avoiding the need to juggle multiple stacks in
+a small address space.</p></section>
+  </div>
+</article>
+
+
+  </section>
+
+  </div>
+
+</div>
+
+<amp-analytics type="googleanalytics" id="analytics1">
+<script type="application/json">
+{
+  "vars": {
+    "account": "UA-3654925-3"
+  },
+  "triggers": {
+    "trackPageview": {
+      "on": "visible",
+      "request": "pageview"
+    }
+  }
+}
+</script>
+</amp-analytics>
+</body>
+</html>

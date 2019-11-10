@@ -1,0 +1,557 @@
+<!doctype html>
+<html amp lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>
+Don't Panic! Handling Errors and Bugs in Go - apparently.me.uk
+</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    
+<link rel="canonical" href="/go-api-panic-or-error/">
+<meta name="description" content="Some different ways to model and handle errors and caller misbehavior in Go libraries">
+
+<meta property="og:title" content="Don't Panic! Handling Errors and Bugs in Go">
+<meta property="og:type" content="article">
+<meta property="og:description" content="Some different ways to model and handle errors and caller misbehavior in Go libraries">
+<meta property="og:site_name" content="apparently.me.uk">
+<link rel="feed" type="application/rss+xml" href="/articles.rss">
+<script type="application/ld+json">
+  {
+  "@context": "http://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Don't Panic! Handling Errors and Bugs in Go",
+  "datePublished": "2018-09-08"
+  }
+</script>
+
+    <meta property="fb:admins" content="509714340" />
+    <meta name="google-site-verification" content="ZzodgjzpqgeNLVSHnRTeHSSoxs9hpDrUJ8BmT1WNvEk" />
+    <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lobster|Raleway:400,600|Inconsolata">
+    <style amp-custom>/* https://www.google.com/fonts#UsePlace:use/Collection:Lobster|Raleway:400,600|Inconsolata */
+@media screen {
+  html {
+    font-size: 12px; } }
+
+@media print {
+  html {
+    font-size: 12px; } }
+
+@media only screen and (min-width: 665px) {
+  html {
+    font-size: 15px; } }
+
+@media only screen and (min-width: 940px) {
+  html {
+    font-size: 18px; } }
+
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  line-height: 1.61803rem;
+  font-family: Raleway, sans-serif;
+  font-weight: 400;
+  background: #f4f6f8;
+  color: #333; }
+  @media print {
+    html {
+      background: #ffffff;
+      color: #000000; } }
+html, body {
+  margin: 0;
+  padding: 0; }
+
+body {
+  padding: 0 1.61803rem;
+  background: transparent; }
+
+a {
+  text-decoration: none;
+  color: #960115;
+  cursor: pointer; }
+
+#everything {
+  max-width: 66ch;
+  margin: 0 auto; }
+
+header {
+  height: 6.47214rem;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  cursor: default; }
+  header h1 {
+    font-family: "Lobster", sans-serif;
+    font-weight: 400;
+    line-height: 4.8541rem;
+    font-size: 3rem;
+    margin: 0;
+    margin-top: 0.5rem;
+    float: left; }
+  header p {
+    margin: 0;
+    margin-top: 2.42705rem;
+    padding-top: 0.15rem;
+    float: right;
+    font-size: 2em;
+    margin-left: 1.61803rem; }
+  @media print {
+    header {
+      display: none; } }
+#content {
+  margin-top: -0.3rem; }
+  #content.ng-enter {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 0; }
+    #content.ng-enter.ng-enter-active {
+      opacity: 1; }
+  #content.ng-leave {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 1; }
+    #content.ng-leave.ng-leave-active {
+      opacity: 0; }
+  #content p, #content h2, #content h3, #content li, #content ul, #content ol, #content dl, #content dt {
+    margin: 0;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: inherit; }
+  #content .article-masthead h2 {
+    font-size: 3rem;
+    line-height: 4.8541rem;
+    text-align: center;
+    margin: 0 1.61803rem;
+    margin-top: 1.61803rem;
+    font-weight: 600; }
+    @media only screen and (max-width: 330px) {
+      #content .article-masthead h2 {
+        font-size: 2rem;
+        line-height: 3.23607rem; } }
+    #content .article-masthead h2 a {
+      color: inherit; }
+      #content .article-masthead h2 a:hover {
+        text-decoration: none;
+        color: #960115; }
+  #content .article-masthead time, #content .article-masthead .article-subhed {
+    text-align: center;
+    margin-bottom: 3.33607rem;
+    display: block;
+    margin-top: 0.80902rem; }
+  @media print {
+    #content .article-masthead {
+      margin-top: 3.23607rem;
+      margin-bottom: 3.23607rem; } }
+  #content .article-part-nav {
+    margin-top: 3.33607rem;
+    margin-bottom: 3.33607rem; }
+  #content h3 {
+    font-size: 2rem;
+    line-height: 3.23607rem;
+    margin-top: 3.23607rem;
+    margin-bottom: 1.41803rem;
+    padding-top: 0.2rem;
+    font-weight: 600;
+    page-break-after: avoid; }
+  #content p {
+    font-size: 1rem;
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    text-align: justify;
+    widows: 3;
+    orphans: 3; }
+  #content li {
+    margin-left: 1.61803rem; }
+  #content ul, #content ol {
+    margin-bottom: 1.61803rem; }
+  #content code, #content tt, #content pre, #content kbd {
+    font-family: Inconsolata, monospace;
+    font-weight: 400;
+    line-height: 1.61803rem; }
+  #content code, #content tt, #content kbd {
+    line-height: 0; }
+  #content .code, #content .terminal {
+    padding: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    background: #E9EBED;
+    overflow-y: auto;
+    widows: 5;
+    orphans: 5; }
+    @media print {
+      #content .code, #content .terminal {
+        padding: 0;
+        margin-top: 0;
+        margin-bottom: 1.61803rem;
+        margin-left: 0;
+        margin-right: 0;
+        background: inherit;
+        color: inherit;
+        page-break-before: avoid; } }
+    #content .code .comment, #content .terminal .comment {
+      color: #7f7f7f; }
+      @media print {
+        #content .code .comment, #content .terminal .comment {
+          color: #333333; } }
+    #content .code .keyword, #content .terminal .keyword {
+      color: #960115; }
+    #content .code .string, #content .terminal .string {
+      color: #CF001C; }
+    #content .code .name, #content .terminal .name {
+      color: #445588; }
+  #content .terminal {
+    background: #333333;
+    color: #E9EBED; }
+    @media print {
+      #content .terminal {
+        color: inherit;
+        background: inherit; } }
+  #content aside {
+    padding-top: calc(1.61803rem - 1px);
+    padding-left: 1.61803rem;
+    padding-right: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: calc(1.61803rem - 1px);
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    border-bottom: 1px dashed #333333;
+    border-top: 1px dashed #333333; }
+    #content aside.note > :first-child::before {
+      content: "Note: ";
+      font-weight: bold; }
+  #content strong, #content b {
+    font-weight: 600; }
+  #content ol.parts {
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem; }
+  #content ol.parts li {
+    list-style: none;
+    margin: 0;
+    padding: 0; }
+    #content ol.parts li.current {
+      font-weight: bold; }
+  #content .card {
+    margin-bottom: 1.09994rem; }
+    #content .card .carddate {
+      float: right;
+      padding-top: 0.80902rem; }
+    #content .card .cardtitle {
+      line-height: 2.42705rem;
+      font-size: 1.5rem;
+      padding-top: 0.24271rem; }
+    #content .card .cardsummary {
+      margin-top: -0.24271rem; }
+</style>
+    <script async src="https://cdn.ampproject.org/v0.js"></script>
+    <script async custom-element="amp-analytics" src="https://cdn.ampproject.org/v0/amp-analytics-0.1.js"></script>
+</head>
+<body>
+
+<div id="everything">
+
+  <header>
+    <div id="titleblurb">
+    <h1><a href="/">apparently.me.uk</a></h1>
+    <p>By <a href="http://martin.atkins.me.uk/" rel="me author">Martin Atkins</a></p>
+    </div>
+  </header>
+
+  <section id="content">
+
+    
+<article class="full h-entry" itemscope itemtype="http://schema.org/Article">
+  <div class="article-masthead">
+    <h2 itemprop="name" class="p-name">Don't Panic! Handling Errors and Bugs in Go</h2>
+    <time datetime="2018-09-08" itemprop="datePublished" class="dt-published">Sep 08 2018</time>
+  </div>
+  <div class="article-body e-content" itemprop="articleBody">
+    <p>Go is often characterized as a "small" language, with a carefully curated
+<em>minimal</em> set of features that together allow for effective programming in
+the large. In particular, in most cases there is only one way to solve a
+particular problem — whether enforced by the language itself or by community
+norms — and so Go code in one project will tend to be very similar to Go code
+in another project.</p><p>To a newcomer, it can appear that error handling is an exception to this rule:
+Go seems to provide two different error-handling mechanisms, strongly encourage
+the use of one, but yet frequently use the other. These two mechanisms are
+explicitly returning error values (the most common and recommended approach)
+and the so-called "panic", which urgently aborts the running program, unwinding
+the stack in a similar way to structured exception handling in other languages.</p><p>While the use of <tt>panic</tt> is clearly discouraged in various documentation,
+it is also frequently used in real-world Go libraries and within the standard
+library itself. This gives the impression that the situation is not as
+straightforward as the documentation makes it appear — that there are actually
+valid reasons to use <tt>panic</tt> for error handling. The goal of this article is
+to take a pragmatic look at different ways Go libraries can and do handle
+errors of different types, and why each may be appropriate in certain
+situations.</p><p>This article is focused on error handling from the perspective of <em>API design</em>.
+That is, on modeling errors in the exported API of a library to help callers of
+that library write a program that is robust in the face of errors. Within the
+implementation details of a library the tradeoffs are often different and the
+consequences of a particular decision tend to fall on the library author rather
+than on library users. Poor API design, on the other hand, is an externality
+felt by all <em>users</em> of that API, with problems potentially repeated across
+dozens, hundreds, or thousands of other programs.</p><p>This is a subjective topic, with no absolute correct answer. You may disagree
+with some of the tradeoffs I propose here, and that is fine: you know better
+than I do what makes sense for your specific problem. The primary goal of this
+article is to introduce the decisions an API designer must make, not to dictate
+the answers to those questions.</p><section id="bugs-vs-errors"><h3>Bugs vs. Errors</h3><p>Before we begin, it's worth discussing what an "error" actually is. There are
+lots of reasons why a program might fail to proceed as its author hoped, such
+as a required file being missing on disk, the network being misconfigured,
+power being lost on the computer where it is running, the CPU itself having
+design flaws...</p><p>In practice, it is folly to try to handle all possible failure modes in your
+average program. As always, programming is a game of tradeoffs and as
+API designers we must weigh a number of competing concerns: Will handling this
+error cause a significant degredation of performance in the happy path?
+Can this error be detected and handled once at the start of the program rather
+than repeatedly during the program? Is it possible to handle this error <em>at all</em>?</p><p>The guidelines for review of library code submitted to the Go project itself
+(in standard libraries or in the "extension" libraries) seem at first glance
+to be very clear that <tt>panic</tt> should never be used, in the section
+simply titled <a href="https://github.com/golang/go/wiki/CodeReviewComments#dont-panic" target="_blank">Don't Panic</a>:</p><blockquote><p>See <a href="https://golang.org/doc/effective_go.html#errors" target="_blank">https://golang.org/doc/effective_go.html#errors</a>. Don't use panic for
+normal error handling. Use error and multiple return values.</p></blockquote><p>But the devil is in the details here. What is "<em>normal</em> error handling" anyway?
+Is there another <em>abnormal</em> kind of error handling? For the sake of this
+article, I'm going to use some different terminology that I find easier to keep
+straight in my head: <em>bugs</em> vs. <em>errors</em>.</p><p>An error, broadly speaking, is a problem that arises in the environment of the
+program: the program would've behaved as desired if only that important file
+hadn't been deleted, or the user's ISP weren't currently having an outage.
+Inappropriate user input is another very common kind of error: users will
+often mistype command lines, use incorrect grammar in configuration files,
+etc. A high-quality program will respond to errors either by working around
+them in some way or by producing an actionable error message for the user
+of the program.</p><p>A bug, on the other hand, is a problem within the program itself. Perhaps a
+developer didn't read a library's API documentation closely enough and passed
+an unacceptable argument to a function. Perhaps a particular list can
+legitimately be empty but we forgot to handle that situation.</p><p>This binary distinction is a coarse approximation, but I think a
+helpful one because it is approximately along this line that many of our API
+design decisions in the following sections will fall.</p><p>There will always be some ambiguity between errors and bugs, but we can try to
+decide many cases by thinking about whose "responsibility" it is to deal with a
+particular problem: perhaps you are writing a library that expects
+already-validated values as input, and so you consider invalid values as a bug
+in the caller. That caller, on the other hand, may consider those invalid
+values to be an error caused by invalid user input. As designers of library
+APIs we must consider carefully the scope of our library, and design its API
+so that callers can understand what is expected. Ideally, we want the compiler
+to <em>check</em> those assumptions.</p></section><section id="input-processing-and-output"><h3>Input, Processing, and Output</h3><p>Another important consideration in software design is dealing with input
+and output. Many programs will begin by gathering outside data to operate on,
+and will end by emitting result data.</p><p>With "errors" defined as problems originating outside the program, it follows
+that errors will be most common within these input and output phases, as it is
+these which directly interact with the program's environment.</p><p>For example, the input phase might read a file from disk. There are lots of
+opportunities for error here: the file might not exist, the filesystem may be
+corrupt, the file may contain data that is not in a suitable format, it may
+contain <em>too much</em> or <em>not enough</em> data, and so on.</p><p>This leads to a general program structure as shown in the following example.</p><p>In this ideal situation, the developer of <tt>loader</tt> has guaranteed in its
+API documentation that the <tt>data</tt> return value will be valid and complete
+as long as the returned error is <tt>nil</tt>.</p><p>This in turn allowed the developer of <tt>doer</tt> to <em>assume</em> that validity, and
+consider it a bug in the calling program if it receives an invalid <tt>data</tt>
+value; it doesn't need to also return an error value. The <tt>writer</tt> too can
+perhaps assume that <tt>result</tt> is valid in some sense guaranteed by the
+<tt>doer</tt> API documentation, but it must still be prepared to handle errors when
+creating the result file.</p><p>What if the caller instead constructs that <tt>data</tt> value directly, and makes
+invalid such that <tt>doer.ProcessData</tt> cannot produce a result?
+This function has no "normal error" channel with which to indicate that, and
+so its only recourse is to <tt>panic</tt>. However, this is clearly a bug in the
+calling program: <tt>doer.ProcessData</tt> mentioned in its documentation that it
+requires data in the form produced by <tt>loader.LoadDataFile</tt>, and so
+constructing that object some other way is incorrect usage, regardless of
+what environment the program is running in.</p><p>As API designers we can help callers write correct programs by making careful
+use of the type system so that the compiler can detect some kinds of
+incorrect usage:</p><p>Depending on how <tt>doer.Data</tt> is specified, it may still be <em>possible</em> for
+a calling program to construct an incorrect value, but our use of a specialized
+type for the data helps the developer of the calling program to understand
+how to correctly connect these different components.</p><p>In this situation, it is reasonable to use <tt>panic</tt> to respond to incorrect
+input in <tt>doer.ProcessData</tt> because the only resolution to the problem is to
+correct the calling program, not to adjust the program's environment.
+The decision to use <tt>panic</tt> here is a tradeoff: since incorrect usage of
+this function is a bug rather than an error, we choose to carefully design the
+API to make this situation unlikely, which avoids placing an error-handling
+burden on correctly-implemented programs, often making the processing phase
+more readable.</p><p>We can see this tradeoff at play within the language itself: an out-of-bounds
+access to an array or slice is signalled via <tt>panic</tt>, rather than explicit
+error values, because handling these errors with explicit control flow would
+render many correct programs unreadable by introducing branches that can never
+be visited.</p><p>This leads to a rule of thumb: always use error values when processing input
+and producing output, since normal errors are most common in these phases.
+Use <tt>panic</tt> sparingly to signal program bugs in the main processing phase,
+along with careful API design to help callers avoid them, when the goal is to
+reduce error handling complexity in the processing phase of the calling program.</p><p>The remaining sections of this article are refinements of and guidelines for
+this high-level rule.</p></section><section id="know-your-audience"><h3>Know Your Audience</h3><p>When a problem is detected, who is expected to fix it? What does that person
+need to know to make progress?</p><p>A <tt>panic</tt> is always directed at the developer of the calling program, and
+never at the end-user. In the event that an end-user <em>does</em> see a panic message,
+the user's only recourse is to contact the software developer for a corrected
+version of the program. Because of this, the default panic behavior includes
+a detailed stack trace for each active goroutine to help the developer identify
+the precise location where the problem was detected.</p><p>Conversely, <tt>panic</tt> is never an appropriate mechanism for messaging to the
+end-user. Problems with the environment — missing files, incorrect files,
+broken network connectivity, etc — can usually <em>not</em> be addressed by changes
+to the program, and so these problems should be reported via error values.</p><p>This often leads to a different problem: error messages at the wrong level
+of abstraction. The worst examples of this come when errors arise deep in
+a call stack and intermediate functions simply pass them through, rather than
+handling them directly. For example, consider this program that is parsing
+some JSON input, presumably as part of a larger input-processing stage:</p><p>If the sequence of bytes given in <tt>buf</tt> is <em>not</em> valid JSON, the error
+message from the JSON library will be returned directly to the caller.
+If <tt>buf</tt> is an empty byte slice, for example, the JSON parser may attempt
+to read and return <tt>io.EOF</tt> as its error.</p><p>If no other function in the call stack handles this error, it is likely to
+surface to the end user like this:</p><pre class='terminal'>$ awesome-program
+EOF</pre><p>Not particularly helpful! The end-user may not even be aware that a file was
+being read and parsed as JSON here. An error return value from a function is,
+in effect, still a message to the direct caller of a function: even though it
+may be describing a more general environmental problem, it is often doing so
+with context and vocabulary common only between that caller and calleee.</p><p>Go's JSON library knows that its caller is trying to parse JSON, but it doesn't
+know <em>why</em>. The caller presumably knows, and so it's the caller's responsibility
+to interpret and translate the error, re-framing the problem in a way
+that makes sense to <em>its</em> caller, and so on until eventually the caller is the
+end user themselves.</p><p>By structuring a program or sub-program into separate input, processing, and
+output phases, this error translation process can be simplified: the call
+stack stays relatively shallow (the "processing" functions are not in turn
+calling parsers, for example) and at each phase the program is attempting to
+acheive a specific goal which can add important context to the error messages
+eventually returned to the user.</p><p>However we achieve it, it's always important for our programs to produce error
+messages that are understandable by their intended audience, with all of the
+context they need to understand and address the problem.</p></section><section id="state-your-intentions"><h3>State Your Intentions</h3><p>As API designers, our responsibility is to design an API that is easy to use
+correctly. Compile-time type checks are one tool in the API designer's toolbox,
+but are not a panacea. Go's type system is intentionally simple, and so it's
+not possible in practice to model all real-world expectations so that they can
+be checked by the compiler.</p><p>Another important tool in API design is <em>idiom</em>. As developers gain experience
+with a variety of different libraries, they develop a mental model for certain
+API design approaches that appear repeatedly. A very important idiom in Go is
+that of returning error values: unless otherwise stated, experienced Go
+developers will expect that if a function returns a non-nil <tt>error</tt> then
+any other return values should be assumed invalid.</p><p>When an API design steps away from common idiom, developers are likely to use
+it incorrectly. Sometimes deviations from idiom are warranted though, since
+each situation is unique.</p><p>When decisions in an API design cannot be modelled as type checks and step
+outside of common idiom, API documentation is our fallback. Go has a simple
+convention for documenting the intended contracts of functions using comments,
+which are rendered by the GoDoc tool.</p><p><strong>A panic is never idiomatic</strong>, and therefore intentional panic situations
+should always be mentioned in documentation. Consider the standard <tt>reflect</tt>
+package for example: many methods of <tt>Value</tt> use panics to signal incorrect
+usage by the caller, but crucially they all also carefully <em>document</em> the
+correct usage and the consequences of violating it:</p><blockquote><p><tt>Bool</tt> returns <tt>v</tt>'s underlying value. It panics if <tt>v</tt>'s kind is not <tt>Bool</tt>.</p><p><tt>Bytes</tt> returns <tt>v</tt>'s underlying value. It panics if <tt>v</tt>'s underlying value is not a slice of bytes.</p><p><tt>Interface</tt> returns <tt>v</tt>'s current value as an <tt>interface{}</tt>. It panics if the Value
+was obtained by accessing unexported struct fields.</p></blockquote><p>With that said, I would be remiss not to mention <a href="http://www.hyrumslaw.com/" target="_blank">Hyrum's Law</a>:
+to mitigate this, it's best for any requirements in your documentation to be
+backed up by specific checks in code so that correct usage can emerge from
+trial and error as well as from careful reading of the documentation.</p></section><section id="help-callers-to-succeed"><h3>Help Callers to Succeed</h3><p>When an API designer decides to consider a particular problem a bug and respond
+to it with a panic, they can improve ergonomics (and thus encourage safe
+behavior) by providing convenient patterns of correct usage.</p><p>For example, in the previous section we saw that Go's own <tt>reflect</tt> package
+has a number of methods that panic under incorrect usage. Some have relatively
+simple definitions of correct usage, such as <tt>Value.Bool</tt> which works only
+for bool values. Others are more complex, such as <tt>Value.Interface</tt> which
+panics "if the value was obtained by accessing unexported struct fields".</p><p>Since a particular portion of a program may not <em>know</em> how a given value was
+obtained, the package also offers <tt>Value.CanInterface</tt>, which returns true
+only if <tt>Value.Interface</tt> could be called on the same value without a panic.</p><p>This combination of methods is optimizing for a presumed common case where
+a <tt>reflect.Value</tt> is both obtained and processed within the same component,
+and thus that component can "know" that it obtained the value in a way that
+allows <tt>Value.Interface</tt> to succeed, but <em>allowing</em> for a less-common
+situation where some fallback behavior or explicit error handling is needed:</p></section><section id="a-real-example"><h3>A Real Example</h3><p>So far we've mainly explored hypotheticals, aside from a brief look at some
+aspects of the built-in <tt>reflect</tt> library. To put these ideas in perspective,
+I'd like to use an API of my own design which attempts to navigate all of these
+tradeoffs.</p><p>My library <a href="https://github.com/zclconf/go-cty" target="_blank">cty</a> models types and values
+for applications that need to deal with data that can't be statically typed
+in the host program, such as data coming from arbitrary input files (e.g. JSON)
+or whose structure is defined by a separate plugin process.</p><p>I created it in response to a sequence of bugs in another program that were
+the result of working directly with <tt>interface{}</tt> values as their dynamic
+value representation, but yet expecting only a subset of values of that type.</p><p>For example, it is common for applications working with JSON to use
+<tt>encoding/json</tt> to unmarshal an arbitrary structure into an <tt>interface{}</tt>
+value and then use type assertions or reflection to work with that. The JSON
+library is constrained to only produce a specific subset of Go types that
+correspond approximately with JSON's own data types, but once these values pass
+into the larger program they may be interpreted by code with a different set
+of expectations, or may be mutated to include types that <em>cannot</em> be
+re-serialized as JSON later.</p><p><tt>cty</tt>, then, essentially establishes a subset of possible types and values
+and aims to ensure that all of the documented invariants for those types and
+values are preserved as the values pass through a program. Whereas passing
+around <tt>interface{}</tt> values relies on convention and good behavior, <tt>cty</tt>
+enforces correct behavior through its API.</p><p>Working with dynamic data types creates a lot more potential runtime problems,
+and raises lots of design questions around which problems are errors vs. bugs,
+and so handling of runtime problems in <tt>cty</tt> raised some interesting design
+questions.</p><p><tt>cty</tt> follows the "Input, Processing, and Output" model I described in an
+earlier section.
+<a href="https://godoc.org/github.com/zclconf/go-cty/cty/json" target="_blank">The JSON package</a>
+within <tt>cty</tt> (which is separate from Go's own) is one example of both
+input and output, converting byte buffers containing JSON syntax into
+values and vice-versa. The functions of this package return error values,
+and following my "Know Your Audience" principle <tt>Unmarshal</tt> aims to return
+error messages that should make sense to the person who wrote the JSON input.</p><p>Once a program has obtained values of type <tt>cty.Value</tt> or <tt>cty.Type</tt>,
+the API design switches to treating incorrect arguments as caller bugs rather
+than errors. This optimizes for ergonomic use by correct programs that have
+performed any necessary validation or type checking ahead of processing,
+as we can see in the following (contrived) example:</p><p>The <tt>cty.Value.AsValueSlice</tt> and <tt>cty.Value.Add</tt> methods used here are
+designed to assume validation was already performed during input and so will
+panic if their expectations are not met in order to reduce error-handling
+"noise" in the calling program. This is reflected in their documentation:</p><blockquote><p><tt>Add</tt> returns the sum of the receiver and the given other value. Both
+values must be numbers; this method will panic if not.</p><p><tt>AsValueSlice</tt> returns a <tt>[]cty.Value</tt> representation of a non-null,
+non-unknown value of any type that <tt>CanIterateElements</tt>, or panics if
+called on any other value.</p></blockquote><p>In the latter case, we see an example of <em>helping callers to succeed</em>: the
+definition of what is iterable is complicated, and so <tt>cty</tt> also offers a
+method <tt>CanIterateElements</tt> so that a program that <em>cannot</em> assume a
+particular type can instead succinctly detect that and handle it, avoiding the
+panic.</p><p>It is important to note that this design doesn't <em>prevent</em> a program from
+panicking. It is possible to use the library incorrectly by failing to
+guarantee the correct type before calling <tt>AsValueSlice</tt>. The design tradeoff
+here is to provide convenient functions to ensure user input is valid early in
+the program, allowing for more direct code (with fewer conditional branches)
+in the "middle" of the program, which is likely to be the most complex part of
+the calling program and where readability is most important.</p><p>In programs like the above where the expected structure is known at compile
+time and it is only the values that vary, <tt>cty</tt> also allows a different
+approach of converting directly to specific native Go types during the input
+phase, allowing the Go compiler to ensure correctness:</p><p>In this case we can do even more of the validation up front, and so the rest
+of the program need not worry about type-related panics at all. It may still
+have <em>other</em> panics to worry about, of course!</p><p>The API design of <tt>cty</tt> is not perfect by any means. In practical use I've
+found that it's easy for callers to allow null values in input but forget to
+handle them later: this is actually true of the first <tt>cty</tt> example above —
+it would panic if given <tt>[null]</tt> as input — and yet only an expert user of
+this library would spot that bug, and it is unfortunately a case likely to be
+missed during testing. Although it's an error on the user's part to provide
+<tt>null</tt>, it's a bug in the program that it isn't handled gracefully. (The
+second example actually fixes this by decoding into a Go type that cannot be
+<tt>nil</tt>, but that fix is by luck more than by care in this case.)</p></section><section id="do-panic"><h3><em>Do</em> Panic?</h3><p>As we've seen in previous sections, while returning error values is the primary
+way to handle errors in a Go library, there are also some situations where a
+panic can be appropriate in conjunction with <em>other</em> design work to create an
+API that is ergonomic and easy to use correctly.</p><p>Through thoughtful API design, we can reduce the cognitive overhead of error
+handling and improve readability by separating the concern of fraught
+interactions with the environment from the more predictable business of
+computation.</p><p>On the other hand, mistakes in API design — as with the modelling of <tt>null</tt>
+in my library <tt>cty</tt> — can create traps where users of your library can
+readily create incorrect programs, leading to crashes.</p><p>The decision of whether a particular problem is an error or a bug is always
+contextual and subjective: it is one of the many tradeoffs we must make
+when designing the API of a library and, in a broader sense, the overall
+architecture of a program.</p><p>The suggestions in this article can be summed up with an API design truism:
+good API design <em>encourages</em> correct usage, through careful application of
+language features, idiom, and documentation. Poor usage or over-usage of error
+values in an API will discourage callers from handling those errors carefully
+due to the increase in code complexity, while poor usage of <tt>panic</tt> will lead
+to software unreliability.</p><p>I hope this article will equip the reader with a good set of questions to ask
+when designing APIs, and that even if you disagree with some of my conclusions
+here — which I expect and welcome — you can do so knowingly, having considered
+all of the available options and their effects.</p></section>
+  </div>
+</article>
+
+
+  </section>
+
+  </div>
+
+</div>
+
+<amp-analytics type="googleanalytics" id="analytics1">
+<script type="application/json">
+{
+  "vars": {
+    "account": "UA-3654925-3"
+  },
+  "triggers": {
+    "trackPageview": {
+      "on": "visible",
+      "request": "pageview"
+    }
+  }
+}
+</script>
+</amp-analytics>
+</body>
+</html>

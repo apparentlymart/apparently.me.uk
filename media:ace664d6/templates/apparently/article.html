@@ -1,0 +1,8 @@
+<article class="full">
+  <div class="article-masthead">
+    <h2>{{ article.title }}</h2>
+    <time datetime="{{ article.date | date:'yyyy-MM-dd' }}" itemprop="datePublished">{{ article.date | date:'mediumDate' }}</time>
+  </div>
+  <div class="article-body" ng-bind-html="article.body">
+  </div>
+</article>

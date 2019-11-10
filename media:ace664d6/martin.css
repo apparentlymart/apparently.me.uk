@@ -1,0 +1,225 @@
+/* http://www.google.com/fonts/#UsePlace:use/Collection:Droid+Sans+Mono|Cantarell:400,700,400italic,700italic|Open+Sans:300italic,300 */
+@import url(http://fonts.googleapis.com/css?family=Droid+Sans+Mono|Cantarell:400,700,400italic,700italic|Open+Sans:300italic,300);
+html, body {
+  background: #111111;
+  color: #ffffff;
+  font-family: 'Cantarell', sans-serif;
+  font-size: 12px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-image: -moz-linear-gradient(top, #222222 54%, #111111 100%);
+  background-image: -webkit-gradient(linear, left top, left bottom, color-stop(54%, #222222), color-stop(100%, #111111));
+  background-image: -webkit-linear-gradient(top, #222222 54%, #111111 100%);
+  background-image: -o-linear-gradient(top, #222222 54%, #111111 100%);
+  background-image: -ms-linear-gradient(top, #222222 54%, #111111 100%);
+  background-image: linear-gradient(top, #222222 54%, #111111 100%);
+  background-position: fixed;
+  background-repeat: repeat-x; }
+  @media only screen and (min-width: 620px) {
+    html, body {
+      font-size: 15px; } }
+  @media only screen and (min-width: 940px) {
+    html, body {
+      font-size: 18px; } }
+#everything {
+  margin: 10px; }
+  @media only screen and (min-width: 620px) {
+    #everything {
+      margin-left: auto;
+      margin-right: auto;
+      width: 600px; } }
+  @media only screen and (min-width: 940px) {
+    #everything {
+      width: 920px; } }
+a:link, a:visited, a:hover, a:focus {
+  color: #ffffff;
+  outline: none; }
+
+header {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid #ffffff;
+  position: relative; }
+
+#titleblurb {
+  text-align: center; }
+  #titleblurb h1 {
+    font-family: "Open Sans", sans-serif;
+    font-weight: normal;
+    font-size: 40px;
+    line-height: 40px;
+    margin: 0;
+    padding: 0;
+    margin-left: 8px; }
+    #titleblurb h1 a {
+      text-decoration: none;
+      color: #ffffff; }
+  @media only screen and (min-width: 620px) {
+    #titleblurb {
+      text-align: left; }
+      #titleblurb h1 {
+        font-size: 50px;
+        line-height: 50px; } }
+#portrait {
+  display: none;
+  position: absolute;
+  top: 0;
+  right: 10px;
+  bottom: 0;
+  left: auto;
+  height: 50px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24); }
+  @media only screen and (min-width: 620px) {
+    #portrait {
+      display: block; } }
+#content {
+  margin-left: 10px;
+  margin-right: 10px;
+  margin-bottom: 10px; }
+
+p {
+  margin-top: 20px;
+  margin-bottom: 20px;
+  line-height: 20px;
+  text-align: justify; }
+  @media only screen and (min-width: 940px) {
+    p {
+      line-height: 30px;
+      margin-top: 30px;
+      margin-bottom: 30px; } }
+h2, h3, h4, h5, h6 {
+  font-weight: normal; }
+
+h2 {
+  font-size: 1.8rem; }
+
+h3 {
+  font-size: 1.61803398875rem; }
+
+pre {
+  background: #000000;
+  margin-left: -20px;
+  margin-right: -20px;
+  padding: 20px;
+  font-family: "Droid Sans Mono", monospace; }
+
+tt, code {
+  font-family: "Droid Sans Mono", monospace; }
+
+figure {
+  margin-left: -20px;
+  margin-right: -20px;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+  background: black;
+  position: relative; }
+  figure img {
+    width: 100%; }
+  figure figcaption {
+    display: block;
+    padding: 20px;
+    padding-top: 10px;
+    text-align: justify; }
+  figure .attrib {
+    position: absolute;
+    top: 10px;
+    right: -10px;
+    width: auto;
+    height: auto;
+    padding: 10px;
+    background: #ffffff;
+    border: 1px solid #000000;
+    color: #000000;
+    font-size: 0.5rem; }
+    figure .attrib p {
+      margin: 0;
+      padding: 0;
+      line-height: 10px; }
+    figure .attrib a {
+      text-decoration: none;
+      color: #000000; }
+  figure.video iframe {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 56.25vw; }
+    @media only screen and (min-width: 620px) {
+      figure.video iframe {
+        width: 620px;
+        height: 348.75px; } }
+    @media only screen and (min-width: 940px) {
+      figure.video iframe {
+        width: 940px;
+        height: 528.75px; } }
+  @media only screen and (min-width: 620px) {
+    figure.float {
+      margin-left: 20px;
+      margin-bottom: 20px;
+      margin-right: -20px;
+      margin-top: 0;
+      float: right;
+      width: 280px; } }
+  @media only screen and (min-width: 940px) {
+    figure.float {
+      width: 287px; } }
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  align-content: flex-start; }
+
+.card {
+  width: 100%;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+  margin-bottom: 10px;
+  margin-top: 10px; }
+  .card a {
+    text-decoration: none;
+    display: block;
+    margin: 0;
+    padding: 0; }
+  @media only screen and (min-width: 620px) {
+    .card {
+      width: 280px;
+      height: 244px; } }
+  @media only screen and (min-width: 940px) {
+    .card {
+      width: 287px;
+      height: 252px; } }
+.cardimage {
+  height: calc((100vw - 40px) * 0.5);
+  background-position: center;
+  background-size: cover;
+  position: relative; }
+  @media only screen and (min-width: 620px) {
+    .cardimage {
+      height: 140px; } }
+.cardtypetag {
+  position: absolute;
+  top: 10px;
+  right: -10px;
+  bottom: auto;
+  left: auto;
+  text-align: right;
+  width: auto;
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  padding: 5px;
+  line-height: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24); }
+  @media only screen and (min-width: 940px) {
+    .cardtypetag {
+      font-size: 15px; } }
+.carddesc {
+  margin: 10px;
+  margin-bottom: 20px; }
+
+.cardtitle {
+  font-size: 1.61803398875rem;
+  line-height: 30px;
+  font-weight: normal; }
+  @media only screen and (min-width: 940px) {
+    .cardtitle {
+      font-size: 1.41rem; } }

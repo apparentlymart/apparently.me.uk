@@ -1,0 +1,515 @@
+<!doctype html>
+<html amp lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>
+Terraform Environment+Application Design Pattern: Per-application Configuration - apparently.me.uk
+</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    
+<link rel="canonical" href="/terraform-environment-application-pattern/per-application-configuration.html">
+<link rel="up" href="/terraform-environment-application-pattern/">
+
+<meta property="og:title" content="Terraform Environment+Application Design Pattern: Per-application Configuration">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="apparently.me.uk">
+<link rel="feed" type="application/rss+xml" href="/articles.rss">
+<script type="application/ld+json">
+  {
+  "@context": "http://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Terraform Environment+Application Design Pattern: Per-application Configuration",
+  "datePublished": "2017-02-18"
+  }
+</script>
+
+    <meta property="fb:admins" content="509714340" />
+    <meta name="google-site-verification" content="ZzodgjzpqgeNLVSHnRTeHSSoxs9hpDrUJ8BmT1WNvEk" />
+    <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lobster|Raleway:400,600|Inconsolata">
+    <style amp-custom>/* https://www.google.com/fonts#UsePlace:use/Collection:Lobster|Raleway:400,600|Inconsolata */
+@media screen {
+  html {
+    font-size: 12px; } }
+
+@media print {
+  html {
+    font-size: 12px; } }
+
+@media only screen and (min-width: 665px) {
+  html {
+    font-size: 15px; } }
+
+@media only screen and (min-width: 940px) {
+  html {
+    font-size: 18px; } }
+
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  line-height: 1.61803rem;
+  font-family: Raleway, sans-serif;
+  font-weight: 400;
+  background: #f4f6f8;
+  color: #333; }
+  @media print {
+    html {
+      background: #ffffff;
+      color: #000000; } }
+html, body {
+  margin: 0;
+  padding: 0; }
+
+body {
+  padding: 0 1.61803rem;
+  background: transparent; }
+
+a {
+  text-decoration: none;
+  color: #960115;
+  cursor: pointer; }
+
+#everything {
+  max-width: 66ch;
+  margin: 0 auto; }
+
+header {
+  height: 6.47214rem;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  cursor: default; }
+  header h1 {
+    font-family: "Lobster", sans-serif;
+    font-weight: 400;
+    line-height: 4.8541rem;
+    font-size: 3rem;
+    margin: 0;
+    margin-top: 0.5rem;
+    float: left; }
+  header p {
+    margin: 0;
+    margin-top: 2.42705rem;
+    padding-top: 0.15rem;
+    float: right;
+    font-size: 2em;
+    margin-left: 1.61803rem; }
+  @media print {
+    header {
+      display: none; } }
+#content {
+  margin-top: -0.3rem; }
+  #content.ng-enter {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 0; }
+    #content.ng-enter.ng-enter-active {
+      opacity: 1; }
+  #content.ng-leave {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 1; }
+    #content.ng-leave.ng-leave-active {
+      opacity: 0; }
+  #content p, #content h2, #content h3, #content li, #content ul, #content ol, #content dl, #content dt {
+    margin: 0;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: inherit; }
+  #content .article-masthead h2 {
+    font-size: 3rem;
+    line-height: 4.8541rem;
+    text-align: center;
+    margin: 0 1.61803rem;
+    margin-top: 1.61803rem;
+    font-weight: 600; }
+    @media only screen and (max-width: 330px) {
+      #content .article-masthead h2 {
+        font-size: 2rem;
+        line-height: 3.23607rem; } }
+    #content .article-masthead h2 a {
+      color: inherit; }
+      #content .article-masthead h2 a:hover {
+        text-decoration: none;
+        color: #960115; }
+  #content .article-masthead time, #content .article-masthead .article-subhed {
+    text-align: center;
+    margin-bottom: 3.33607rem;
+    display: block;
+    margin-top: 0.80902rem; }
+  @media print {
+    #content .article-masthead {
+      margin-top: 3.23607rem;
+      margin-bottom: 3.23607rem; } }
+  #content .article-part-nav {
+    margin-top: 3.33607rem;
+    margin-bottom: 3.33607rem; }
+  #content h3 {
+    font-size: 2rem;
+    line-height: 3.23607rem;
+    margin-top: 3.23607rem;
+    margin-bottom: 1.41803rem;
+    padding-top: 0.2rem;
+    font-weight: 600;
+    page-break-after: avoid; }
+  #content p {
+    font-size: 1rem;
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    text-align: justify;
+    widows: 3;
+    orphans: 3; }
+  #content li {
+    margin-left: 1.61803rem; }
+  #content ul, #content ol {
+    margin-bottom: 1.61803rem; }
+  #content code, #content tt, #content pre, #content kbd {
+    font-family: Inconsolata, monospace;
+    font-weight: 400;
+    line-height: 1.61803rem; }
+  #content code, #content tt, #content kbd {
+    line-height: 0; }
+  #content .code, #content .terminal {
+    padding: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    background: #E9EBED;
+    overflow-y: auto;
+    widows: 5;
+    orphans: 5; }
+    @media print {
+      #content .code, #content .terminal {
+        padding: 0;
+        margin-top: 0;
+        margin-bottom: 1.61803rem;
+        margin-left: 0;
+        margin-right: 0;
+        background: inherit;
+        color: inherit;
+        page-break-before: avoid; } }
+    #content .code .comment, #content .terminal .comment {
+      color: #7f7f7f; }
+      @media print {
+        #content .code .comment, #content .terminal .comment {
+          color: #333333; } }
+    #content .code .keyword, #content .terminal .keyword {
+      color: #960115; }
+    #content .code .string, #content .terminal .string {
+      color: #CF001C; }
+    #content .code .name, #content .terminal .name {
+      color: #445588; }
+  #content .terminal {
+    background: #333333;
+    color: #E9EBED; }
+    @media print {
+      #content .terminal {
+        color: inherit;
+        background: inherit; } }
+  #content aside {
+    padding-top: calc(1.61803rem - 1px);
+    padding-left: 1.61803rem;
+    padding-right: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: calc(1.61803rem - 1px);
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    border-bottom: 1px dashed #333333;
+    border-top: 1px dashed #333333; }
+    #content aside.note > :first-child::before {
+      content: "Note: ";
+      font-weight: bold; }
+  #content strong, #content b {
+    font-weight: 600; }
+  #content ol.parts {
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem; }
+  #content ol.parts li {
+    list-style: none;
+    margin: 0;
+    padding: 0; }
+    #content ol.parts li.current {
+      font-weight: bold; }
+  #content .card {
+    margin-bottom: 1.09994rem; }
+    #content .card .carddate {
+      float: right;
+      padding-top: 0.80902rem; }
+    #content .card .cardtitle {
+      line-height: 2.42705rem;
+      font-size: 1.5rem;
+      padding-top: 0.24271rem; }
+    #content .card .cardsummary {
+      margin-top: -0.24271rem; }
+</style>
+    <script async src="https://cdn.ampproject.org/v0.js"></script>
+    <script async custom-element="amp-analytics" src="https://cdn.ampproject.org/v0/amp-analytics-0.1.js"></script>
+</head>
+<body>
+
+<div id="everything">
+
+  <header>
+    <div id="titleblurb">
+    <h1><a href="/">apparently.me.uk</a></h1>
+    <p>By <a href="http://martin.atkins.me.uk/" rel="me author">Martin Atkins</a></p>
+    </div>
+  </header>
+
+  <section id="content">
+
+    
+<article class="full h-entry" itemscope itemtype="http://schema.org/Article">
+  <div class="article-masthead">
+    <h2 itemprop="name" class="p-name"><a href="/terraform-environment-application-pattern/">Terraform Environment+Application Design Pattern</a></h2>
+    <div class="article-subhed">Per-application Configuration</div>
+  </div>
+  <div class="article-body e-content" itemprop="articleBody">
+    <p>This is the third part of a multi-part article on <a href="./">the Terraform E+A pattern</a>.
+If you're just joining us, I suggest starting from the beginning to understand
+the goals of this pattern and the terminology we're using to describe it.</p><p>In <a href="creating-environments.html">the previous part</a> we created two <em>environments</em> that provide
+infrastructure that will be shared by all of our applications. In this part
+we will write Terraform configurations to deploy the applications themselves,
+with a separate deployment for each environment.</p><section id="why-use-terraform-for-app-deployment"><h3>Why Use Terraform for App Deployment?</h3><p>Before we continue it's important to digress a little into why (and whether!)
+to use Terraform for deploying applications at all. Since Terraform's early
+days there has been, among many users, an idea that Terraform's purpose is to
+orchestrate the creation <em>only</em> of the shared infrastructure, and that
+application development should be instead done by directly using a different
+tools such as <a href="https://kubernetes.io/" target="_blank">Kubernetes</a> or <a href="https://nomadproject.io/" target="_blank">Nomad</a>.</p><p>It's important to note that this is not an either/or proposition. Although
+Terraform's <em>bread and butter</em> is deploying the low-level infrastructure from
+cloud platforms -- these were the first resources implemented, and the most
+prolifically used -- fundamentally Terraform is just a tool for wiring things
+together, and it is growing broader and broader platform support with each
+release. Terraform can, for example, be used to deploy jobs into <a href="https://kubernetes.io/" target="_blank">Kubernetes</a>
+and <a href="https://nomadproject.io/" target="_blank">Nomad</a> clusters, as an alternative to using the native tools for these
+platforms directly.</p><p>So now that we've established that we <em>can</em> use Terraform for app deployment,
+<em>why</em> should we? The major reason is that your application probably does not
+live isolated in its own world: all but the simplest applications have
+dependencies on other applications and on shared infrastructure. By describing
+these relationships via Terraform you can help future maintainers understand
+your system architecture and more easily implement architecture changes over
+time.</p><p>An additional emerging reason is the rise of mixed architectures that blend
+traditional deployment via virtual machines or containers with higher-level
+abstractions such as <a href="https://aws.amazon.com/lambda/" target="_blank">AWS Lambda</a> and <a href="https://aws.amazon.com/api-gateway/" target="_blank">Amazon API Gateway</a>. Terraform makes
+it straightforward to blend these technologies to use the best tools for each
+job, rather than being constrained such that applications must <em>always</em> consist
+only of jobs in a particular container scheduler.</p><p>With all of that said, for the remainder of this article I will stick to basic
+EC2 compute infrastructure because I expect it's the most familiar to readers
+and thus won't distract as much from the overall approach. The "immutable EC2
+servers" approach illuatrated here is falling out of favor due to the amount of
+time it takes to deploy new code; as usual for the purpose of the pattern we
+care about how you connect things together rather than exactly what
+technologies you use, so you should feel free to substitute <a href="https://www.heroku.com/" target="_blank">Heroku</a> apps, AWS
+Lambda functions, or any other application hosting technology you like.</p></section><section id="per-application-terraform-config"><h3>Per-application Terraform Config</h3><p>Having set up our environments, our next task is to configure each of our
+applications to deploy into them. Whereas we created a separate configuration
+for each of the environments themselves, for <em>applications</em> we will use
+only a single configuration that is deployed once for each environment.</p><p>The different tradeoff at this layer is intended to encourage applications to
+deploy as similarly as possible in each environment, pushing any necessary
+differences down into the environment configuration which is presumed to
+change less often. The smaller the deviation between environments the more
+useful any pre-production environments will be.</p><p>An important concept within an application deployment is the idea of a
+<em>deployment artifact</em>. This is a packaged representation of the code for
+a particular version of the application, and its form will depend on your
+choice of deployment technology. For our simple example using EC2 instances,
+our artifacts will be an <em>Amazon Machine Image</em> (AMI) per application. If
+you are using container-based technology, you might instead produce a container
+image and upload it to a repository. If you're using AWS Lambda, your artifact
+will be a zip file on Amazon S3 containing the application code.
+How an artifact gets built and what form it takes is beyond the scope of this
+pattern, and you should feel free to use whatever build tools are idiomatic
+for your target platform.</p><p>I recommend keeping each application's build scripts and Terraform
+configuration within that application's own code repository. This makes it
+easier to evolve the build and deploy pipeline along with the code. Where
+you keep it in the repository is up to you, but for our purposes here we
+will create "build" and "deploy" directories in the root of each application
+repository containing the build scripts and Terraform deploy configuration
+respectively.</p><section id="the-store-application"><h4>The "store" application</h4><p>Here's how our directory structure might look for the "store" application that
+will provide our application's backend API, which we'll assume is a <a href="https://nodejs.org/" target="_blank">NodeJS</a>
+application:</p><pre>app.js
+package.json
+build/
+  build.sh
+deploy/
+  vars.tf
+  storage.tf
+  server.tf
+  public.tf</pre><p>We're going to focus on the contents of the <tt>deploy</tt> directory here, assuming
+that the <tt>build.sh</tt> script does whatever is appropriate in order to produce
+an AMI that is configured to join the Consul cluster and run the application
+on boot.</p><p>Our <tt>vars.tf</tt> in this case deals with two concerns: specifying the
+artifact(s) to use for this deployment, and collecting necessary configuration
+data from the configuration store (Consul in our example) so we can
+successfully participate in the environment. Here's how it might look for
+this application:</p><p>Since this application is an API for a data store, it'll need somewhere to
+store the data. For the sake of this example we'll assume data lives in an
+<a href="https://aws.amazon.com/dynamodb/" target="_blank">Amazon DynamoDB</a> table, so our <tt>storage.tf</tt> file looks like this:</p><p>Here we create our DynamoDB table and publish its name in a new part of our
+configuration store. This <tt>private</tt> prefix is where we'll publish things
+that are used internally within each application. Only the application's
+own servers will access this table, so it's considered private. The <tt>store</tt>
+part of the <tt>private/store</tt> prefix is the name of this application; keeping
+each application's keys separate will help keep our configuration store
+organized and prevent unintentional conflicts.</p><p>It's worth noting that we don't necessarily need to write private values
+into Consul if they will only be used within Terraform. In this case we're
+writing the value because the application's code will read it from
+Consul at runtime, independently of Terraform, but it can also be useful to
+publish things here for human reference when exploring or debugging the
+system, highlighting the most useful information and avoiding the need to
+dig into all the raw details in the Terraform state.</p><p>Now we finally get to deploying the application code itself. Again I will
+reinforce that using AWS instances for deployment here is just an example,
+and this approach would be equally applicable to any other technology that
+can run application code. With that said, here's our <tt>server.tf</tt>:</p><p>Here we've established a set of servers running our code (using the EC2
+<em>auto-scaling</em> feature) and a load balancer in front of it that serves to
+give us a fixed hostname where we can access the application. We use the
+environment configuration information to automatically create the resources
+in the appropriate subnets to participate in the target environment, and
+name the resources to include the environment name so they can be easily
+distinguished when viewing the resources outside of Terraform.</p><p>Our final task for this application is to announce its location to the other
+apps that will depend on it. Again we do this in Consul, via <tt>public.tf</tt>:</p><p>The <tt>public/</tt> prefix in Consul is used to represent app-specific values that
+are intended for <em>other</em> applications to consume. Again the "store" part of
+<tt>public/store/</tt> is the application's name, keeping each application's
+public settings separate from others.</p><aside class='note'><p>Since my goal is to describe a general pattern rather than recommend
+Consul specifically, I used Consul's key/value store to publish the API
+URL here. With Consul it is actually more idiomatic to publish a <em>service</em>
+and use Consul's DNS server or a Consul-integrated load balancer to route
+requests.</p><p>For the sake of the E+A Pattern it doesn't matter <em>how</em> you publish this
+information, as long as it can be accessed by dependent applications in a
+predictable, consistent way.</p></aside><p>Because we're going to deploy a single configuration multiple times,
+duplicating the resources in each environment, we can use
+<a href="https://www.terraform.io/docs/state/environments.html" target="_blank">Terraform's "State Environments" feature</a> to create multiple distinct
+states for this configuration. We'll start by establishing a state for the
+QA environment, as shown below.</p><pre class='terminal'>terraform env new QA</pre><p>(This requires that you be using a Terraform backend that supports this
+feature which, at the time of writing, not all do. This situation should
+improve in future Terraform versions.)</p><p>Since this configuration has some variables, we'll need to provide some
+additional values when we ask Terraform to plan: the id of the artifact that
+was produced by the most recent build run, and the address of the Consul
+cluster of the environment we're trying to deploy into:</p><pre class='terminal'>terraform plan \
+    -var="environment_api_addr=10.1.2.32:8500" \
+    -var="server_ami_id=ami-abc123" \
+    -out=tfplan</pre><p>The address <tt>10.1.2.32</tt> is standing in for a server where the Consul API
+for the QA environment can be reached. It is this that determines that the
+application will deploy into the QA environment rather than the production
+environment.</p><p>The rest of the lifecycle proceeds as normal. Once <tt>terraform apply</tt> has
+completed successfully the application should be running at a hostname
+that can be discovered from the Consul store.</p><p>Once the deployment to QA is working as expected, we'll want to deploy to
+production too. To do this we'll need to create and switch to a separate
+state environment:</p><pre class='terminal'>terraform env new PROD</pre><p>We can then repeat the same lifecycle using the Consul API address from the
+<em>production</em> environment:</p><pre class='terminal'>terraform plan \
+    -var="environment_api_addr=10.1.3.12:8500" \
+    -var="server_ami_id=ami-abc123" \
+    -out=tfplan</pre><p>Notice that the <tt>environment_api_addr</tt> value is now changed, with
+<tt>10.1.3.12</tt> standing in for a Consul server in production.</p><p>The same configuration is now deployed twice, with its entire infrastructure
+stack duplicated in each environment. Each will have its own separate pool of
+servers running inside the environment's network, and its own load balancer
+through which they can be accessed. The <tt>public/store</tt> prefix in each
+respective Consul store allows us to find the API load balancer for each
+environment.</p></section><section id="the-editor-application"><h4>The "editor" application</h4><p>As discussed in part one, the "editor" part of the system is what authors and
+editors use to produce content in our hypothetical content management system.
+This application is one of two clients for the "store" API we deployed in the
+previous section.</p><p>This time our imaginary application will be an entirely browser-side
+application served as static files from Amazon S3's static website service,
+using the "store" API as its backend.</p><p>The directory structure for this one is quite similar to "store":</p><pre>package.json
+htdocs/
+  app.js
+  style.css
+  index.html
+build/
+  build.sh
+deploy/
+  vars.tf
+  app.tf
+  public.tf</pre><p>Once again we'll gloss over all of the hypothetical application code, since
+implementing a CMS UI far out of scope. However, for this application we'll
+assume that the <tt>build.sh</tt> file produces just a directory containing
+<tt>index.html</tt>, <tt>app.min.js</tt> and <tt>css.min.js</tt> files derived from the files
+in <tt>htdocs</tt>. Our different choice of delivery infrastructure leads to a
+different type of artifact, but the principle of building an artifact for each
+application version remains the same.</p><p>Looking again into the <tt>deploy</tt> directory, our <tt>vars.tf</tt> is similar to
+that of the previous application:</p><p>There are two new features in this configuration compared to the last.</p><p>First, we retrieve the information that was published by the "store"
+application as part of its deployment. This follows the same principle as
+retrieving the main environment configuration, and allows us to automatically
+discover the URL for the store API for the target environment.</p><p>Secondly, we retrieve the key <tt>config/editor/hostname</tt>, which we presume
+was put there directly by a human operator (or, alternatively, via some script
+that populates configuration into Consul). This allows us to vary slightly
+the configuration between environments, such that (for example) the production
+environment can use the hostname <tt>editor.example.com</tt> while our QA
+environment uses <tt>editor.qa.example.com</tt>.</p><p>Next we need to deploy the application itself. This looks a bit different than
+the previous example since we're deploying to S3, but the pattern still holds:
+the application's Terraform configuration is responsible for creating all of
+the infrastructure that is specific to that application, which this time is
+an S3 bucket and its contents:</p><p>Finally, we'll publish to Consul the URL at which the application is running.
+In this case there aren't yet any automated consumers of this information, but
+it is still helpful to humans that want to quickly find the application.
+This is once again done in <tt>public.tf</tt>:</p><p>The two examples we've seen so far demonstrate the general structure for
+application configs. They have three main parts:</p><ul><li><p>Retrieve configuration data, which might either be direct application
+configuration or just discovery of settings published by other system
+components.</p></li><li><p>Create the application's delivery infrastructure, wiring it up as necessary
+to other components using the configuration data.</p></li><li><p>Publish the public-facing endpoints to the resulting infrastructure for
+discovery by other applications and for easy reference by human operators.</p></li></ul><p>The deployment process for this application follows the same steps as for
+the previous, aside from the artifact variable now being a directory on local
+disk. Once again we would deploy it separately to each environment, using the
+same Terraform configuration for both but varying based on what we discover in
+the environment's configuration store.</p><p>With two apps deployed, we have just one left to complete, which we will do
+(after a minor digression) in part four!</p></section></section>
+  </div>
+  <div class="article-part-nav">
+    <ol class="parts">
+      
+        
+        <li><a href="/terraform-environment-application-pattern/overview.html">Part 1: Overview and Definitions</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/creating-environments.html">Part 2: Creating Environments</a></li>
+        
+      
+        
+        <li class="current"><a href="/terraform-environment-application-pattern/per-application-configuration.html" rel="self">Part 3: Per-application Configuration</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/join-environment-module.html">Part 4: The "Join Environment" Module</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/conclusion.html">Part 5: Conclusion</a></li>
+        
+      
+        
+        <li><a href="/terraform-environment-application-pattern/bonus-patterns.html">Part 6: Bonus Patterns</a></li>
+        
+      
+    </ol>
+  </div>
+</article>
+
+
+  </section>
+
+  </div>
+
+</div>
+
+<amp-analytics type="googleanalytics" id="analytics1">
+<script type="application/json">
+{
+  "vars": {
+    "account": "UA-3654925-3"
+  },
+  "triggers": {
+    "trackPageview": {
+      "on": "visible",
+      "request": "pageview"
+    }
+  }
+}
+</script>
+</amp-analytics>
+</body>
+</html>

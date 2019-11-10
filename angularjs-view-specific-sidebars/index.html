@@ -1,0 +1,370 @@
+<!doctype html>
+<html amp lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>
+View-specific Sidebars in AngularJS - apparently.me.uk
+</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    
+<link rel="canonical" href="/angularjs-view-specific-sidebars/">
+<meta name="description" content="Sidebars and titles that vary between views in AngularJS">
+
+<meta property="og:title" content="View-specific Sidebars in AngularJS">
+<meta property="og:type" content="article">
+<meta property="og:description" content="Sidebars and titles that vary between views in AngularJS">
+<meta property="og:site_name" content="apparently.me.uk">
+<link rel="feed" type="application/rss+xml" href="/articles.rss">
+<script type="application/ld+json">
+  {
+  "@context": "http://schema.org",
+  "@type": "BlogPosting",
+  "headline": "View-specific Sidebars in AngularJS",
+  "datePublished": "2014-09-14"
+  }
+</script>
+
+    <meta property="fb:admins" content="509714340" />
+    <meta name="google-site-verification" content="ZzodgjzpqgeNLVSHnRTeHSSoxs9hpDrUJ8BmT1WNvEk" />
+    <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lobster|Raleway:400,600|Inconsolata">
+    <style amp-custom>/* https://www.google.com/fonts#UsePlace:use/Collection:Lobster|Raleway:400,600|Inconsolata */
+@media screen {
+  html {
+    font-size: 12px; } }
+
+@media print {
+  html {
+    font-size: 12px; } }
+
+@media only screen and (min-width: 665px) {
+  html {
+    font-size: 15px; } }
+
+@media only screen and (min-width: 940px) {
+  html {
+    font-size: 18px; } }
+
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  line-height: 1.61803rem;
+  font-family: Raleway, sans-serif;
+  font-weight: 400;
+  background: #f4f6f8;
+  color: #333; }
+  @media print {
+    html {
+      background: #ffffff;
+      color: #000000; } }
+html, body {
+  margin: 0;
+  padding: 0; }
+
+body {
+  padding: 0 1.61803rem;
+  background: transparent; }
+
+a {
+  text-decoration: none;
+  color: #960115;
+  cursor: pointer; }
+
+#everything {
+  max-width: 66ch;
+  margin: 0 auto; }
+
+header {
+  height: 6.47214rem;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  cursor: default; }
+  header h1 {
+    font-family: "Lobster", sans-serif;
+    font-weight: 400;
+    line-height: 4.8541rem;
+    font-size: 3rem;
+    margin: 0;
+    margin-top: 0.5rem;
+    float: left; }
+  header p {
+    margin: 0;
+    margin-top: 2.42705rem;
+    padding-top: 0.15rem;
+    float: right;
+    font-size: 2em;
+    margin-left: 1.61803rem; }
+  @media print {
+    header {
+      display: none; } }
+#content {
+  margin-top: -0.3rem; }
+  #content.ng-enter {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 0; }
+    #content.ng-enter.ng-enter-active {
+      opacity: 1; }
+  #content.ng-leave {
+    -webkit-transition: all 0.25s ease;
+    -moz-transition: all 0.25s ease;
+    transition: all 0.25s ease;
+    opacity: 1; }
+    #content.ng-leave.ng-leave-active {
+      opacity: 0; }
+  #content p, #content h2, #content h3, #content li, #content ul, #content ol, #content dl, #content dt {
+    margin: 0;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: inherit; }
+  #content .article-masthead h2 {
+    font-size: 3rem;
+    line-height: 4.8541rem;
+    text-align: center;
+    margin: 0 1.61803rem;
+    margin-top: 1.61803rem;
+    font-weight: 600; }
+    @media only screen and (max-width: 330px) {
+      #content .article-masthead h2 {
+        font-size: 2rem;
+        line-height: 3.23607rem; } }
+    #content .article-masthead h2 a {
+      color: inherit; }
+      #content .article-masthead h2 a:hover {
+        text-decoration: none;
+        color: #960115; }
+  #content .article-masthead time, #content .article-masthead .article-subhed {
+    text-align: center;
+    margin-bottom: 3.33607rem;
+    display: block;
+    margin-top: 0.80902rem; }
+  @media print {
+    #content .article-masthead {
+      margin-top: 3.23607rem;
+      margin-bottom: 3.23607rem; } }
+  #content .article-part-nav {
+    margin-top: 3.33607rem;
+    margin-bottom: 3.33607rem; }
+  #content h3 {
+    font-size: 2rem;
+    line-height: 3.23607rem;
+    margin-top: 3.23607rem;
+    margin-bottom: 1.41803rem;
+    padding-top: 0.2rem;
+    font-weight: 600;
+    page-break-after: avoid; }
+  #content p {
+    font-size: 1rem;
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    text-align: justify;
+    widows: 3;
+    orphans: 3; }
+  #content li {
+    margin-left: 1.61803rem; }
+  #content ul, #content ol {
+    margin-bottom: 1.61803rem; }
+  #content code, #content tt, #content pre, #content kbd {
+    font-family: Inconsolata, monospace;
+    font-weight: 400;
+    line-height: 1.61803rem; }
+  #content code, #content tt, #content kbd {
+    line-height: 0; }
+  #content .code, #content .terminal {
+    padding: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: 1.61803rem;
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    background: #E9EBED;
+    overflow-y: auto;
+    widows: 5;
+    orphans: 5; }
+    @media print {
+      #content .code, #content .terminal {
+        padding: 0;
+        margin-top: 0;
+        margin-bottom: 1.61803rem;
+        margin-left: 0;
+        margin-right: 0;
+        background: inherit;
+        color: inherit;
+        page-break-before: avoid; } }
+    #content .code .comment, #content .terminal .comment {
+      color: #7f7f7f; }
+      @media print {
+        #content .code .comment, #content .terminal .comment {
+          color: #333333; } }
+    #content .code .keyword, #content .terminal .keyword {
+      color: #960115; }
+    #content .code .string, #content .terminal .string {
+      color: #CF001C; }
+    #content .code .name, #content .terminal .name {
+      color: #445588; }
+  #content .terminal {
+    background: #333333;
+    color: #E9EBED; }
+    @media print {
+      #content .terminal {
+        color: inherit;
+        background: inherit; } }
+  #content aside {
+    padding-top: calc(1.61803rem - 1px);
+    padding-left: 1.61803rem;
+    padding-right: 1.61803rem;
+    margin-top: 1.61803rem;
+    margin-bottom: calc(1.61803rem - 1px);
+    margin-left: -1.61803rem;
+    margin-right: -1.61803rem;
+    border-bottom: 1px dashed #333333;
+    border-top: 1px dashed #333333; }
+    #content aside.note > :first-child::before {
+      content: "Note: ";
+      font-weight: bold; }
+  #content strong, #content b {
+    font-weight: 600; }
+  #content ol.parts {
+    line-height: 1.61803rem;
+    margin-bottom: 1.61803rem; }
+  #content ol.parts li {
+    list-style: none;
+    margin: 0;
+    padding: 0; }
+    #content ol.parts li.current {
+      font-weight: bold; }
+  #content .card {
+    margin-bottom: 1.09994rem; }
+    #content .card .carddate {
+      float: right;
+      padding-top: 0.80902rem; }
+    #content .card .cardtitle {
+      line-height: 2.42705rem;
+      font-size: 1.5rem;
+      padding-top: 0.24271rem; }
+    #content .card .cardsummary {
+      margin-top: -0.24271rem; }
+</style>
+    <script async src="https://cdn.ampproject.org/v0.js"></script>
+    <script async custom-element="amp-analytics" src="https://cdn.ampproject.org/v0/amp-analytics-0.1.js"></script>
+</head>
+<body>
+
+<div id="everything">
+
+  <header>
+    <div id="titleblurb">
+    <h1><a href="/">apparently.me.uk</a></h1>
+    <p>By <a href="http://martin.atkins.me.uk/" rel="me author">Martin Atkins</a></p>
+    </div>
+  </header>
+
+  <section id="content">
+
+    
+<article class="full h-entry" itemscope itemtype="http://schema.org/Article">
+  <div class="article-masthead">
+    <h2 itemprop="name" class="p-name">View-specific Sidebars in AngularJS</h2>
+    <time datetime="2014-09-14" itemprop="datePublished" class="dt-published">Sep 14 2014</time>
+  </div>
+  <div class="article-body e-content" itemprop="articleBody">
+    <p>For AngularJS applications that use the standard <tt>ngRoute</tt> facility for
+navigation between multiple pages, a common issue is that while the
+<tt>ng-view</tt> directive allows the main body of the page to vary between
+routes, the surrounding template is frustratingly static. Even something
+as simple as updating the main page title is not supported natively.</p><p>Many applications have worked around this by having the controller manipulate
+state -- either setting <tt>window.title</tt> directly, or writing data into
+<tt>$rootScope</tt> -- but that can often lead to presentational concerns bleeding
+into the controller.</p><p>This article explores some techniques for allowing the view's <em>template</em> to
+interact with the site's chrome, and thus allowing these concerns to be
+solved in a more appropriate layer.</p><section id="route-specific-title"><h3>Route-specific Title</h3><p>When navigating between views in an AngularJS application, it's desirable
+for the HTML <tt>&lt;title&gt;</tt> element to be updated so that a user with multiple
+tabs open can quickly understand the context of each of them, or so that
+a browser bookmark will recieve a sensible name.</p><p>A trivial way to accomplish this is to simply update the title in the
+route's controller:</p><p>However, the precise formatting of the title, much as with other aspects of
+how the content is presented to the user, is rightfully the concern of the
+template layer rather than the controller layer.</p><p>What if we could express the title as part of the view's template?</p><p>AngularJS directives allow us to support additional elements in templates,
+but this one is unusual in that it ought to have no affect on the rendering of
+the body of the document. Instead, we simply want to make the contents of
+the view element available for use in the page title.</p><p>This unusual behavior can be achieved simply by removing the element from the
+DOM during linking. The directive remains active in spite of its element
+being detached, and any interpolations within it will work as expected since
+watchers are attached to scopes rather than to DOM elements:</p><p>Here we just reflect the text content of the <tt>view-title</tt> element into the
+<tt>viewTitle</tt> variable, so that we can use it within the title element in the
+application's main template:</p><p>Watching the element's text content is a tricky way to automatically benefit
+from Angular's existing interpolation of the body, but performance-concious
+applications will probably want to avoid traversing DOM in a watcher by
+manually interpolating the text in the element at compile time.</p><section id="don-t-repeat-yourself"><h4>Don't Repeat Yourself</h4><p>Since the "view title" is often present inside some visible element on the
+page, we can avoid repetition by extending the directive to also support
+use as an attribute on an existing element. This is a simple matter of adding
+<tt>A</tt> to the <tt>restrict</tt> key in the directive definition, and then only
+conditionally removing the affected element:</p><p>The view title can then be "borrowed" from another element in the view template:</p><p>Since the <tt>view-title</tt> directive is originally encountered by angular inside
+the <tt>ng-view</tt> directive, references to variables remain relative to the view
+scope even though the title is presented outside of it.</p><p>This technique, along with a related technique for adding metadata elements
+to the document's <tt>head</tt>, is implemented in my AngularJS library
+<a href="https://github.com/apparentlymart/angularjs-viewhead" target="_blank">angularjs-viewhead</a>,
+which includes
+<a href="http://apparentlymart.github.io/angularjs-viewhead/example/#/" target="_blank">a working example</a>.</p></section></section><section id="route-specific-sidebar"><h3>Route-specific Sidebar</h3><p>The above technique of using directives to latch on to elements and then
+move them around in the DOM can be extended to apply to visible elements too.
+Imagine for example an app with a sidebar that normally displays fixed content
+on each view, but for some views the sidebar switches to show some
+view-specific content, such as some context-sensitive related links.</p><p>Taking a cue from
+<a href="https://docs.djangoproject.com/en/dev/topics/templates/" target="_blank">Django Templates</a>
+and <a href="http://jinja.pocoo.org/docs/dev/" target="_blank">Jinja2</a>, we can support template
+"blocks" that are established by the main page template but can be overridden
+on a view-by-view basis.</p><p>Here's a basic page skeleton with a "sidebar":</p><p>And then here is an example view template defining custom sidebar content:</p><p>These two templates introduce two new directives: <tt>block-insertion</tt>, which
+marks an element as being a replacable block, and <tt>block-replacement</tt>,
+which can be used in a view template to replace the insertion element
+with the matching key.</p><p>For simplicity we'll have these directives collaborate via a global variable,
+but in a real implementation it would be better to use something attached to
+the injector so that multiple applications can coexist on one page. These
+two directives are also tightly coupled together for simplicity's sake.</p><p>Much as with the <tt>view-title</tt> case above, Angular's template compiler treats
+the replacement element as part of the view scope even though it has been moved
+elsewhere in the DOM, allowing variables from the view scope to be used in
+the replacement template.</p><p>There is
+<a href="http://plnkr.co/edit/BlmbRL" target="_blank">a complete, working example of this technique</a>
+which others are invited to build upon.</p><p>This ought to be made more robust before use in a production application. For
+example, it out to support the destruction of <tt>block-insertion</tt> directives,
+which requires retaining a little more state. It would also be nice for the
+block replacement to support <tt>$animate</tt> to allow transitions between blocks.</p></section><section id="conclusion"><h3>Conclusion</h3><p>Enthusiasts for the alternative <tt>ui-router</tt> implementation of routing often
+criticize the limitations of the stock <tt>ngRoute</tt>, but with some creative
+use of directives and scope one can achieve some more advanced capabilities
+without switching away wholesale from Angular's standard routing.</p><p>The fact that directives "own" an HTML element but are managed within the
+scope tree allows for such elements to be moved arbitrarily around the document
+or removed from the document altogether while still retaining their connection
+to their original declaration context. This creates some powerful possibilities
+and I'm excited to see what other techniques can come from this capability.</p><p>All code snippets within this article are released into the public domain in
+the hope that they will be useful, but it is presented only as prototype code
+and has no warranty of any kind.</p></section>
+  </div>
+</article>
+
+
+  </section>
+
+  </div>
+
+</div>
+
+<amp-analytics type="googleanalytics" id="analytics1">
+<script type="application/json">
+{
+  "vars": {
+    "account": "UA-3654925-3"
+  },
+  "triggers": {
+    "trackPageview": {
+      "on": "visible",
+      "request": "pageview"
+    }
+  }
+}
+</script>
+</amp-analytics>
+</body>
+</html>

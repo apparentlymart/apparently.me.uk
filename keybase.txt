@@ -1,0 +1,57 @@
+
+==================================================================
+https://keybase.io/apparentlymart
+--------------------------------------------------------------------
+
+I hereby claim:
+
+  * I am an admin of https://apparently.me.uk
+  * I am apparentlymart (https://keybase.io/apparentlymart) on keybase.
+  * I have a public key ASAJoV38wX9uISK2g-pgpYZOPFR0Xqr1yn4JLkZsmVYZqQo
+
+To do so, I am signing this object:
+
+{
+  "body": {
+    "key": {
+      "eldest_kid": "0120730f01ac61905626c888e09e684dd2c48f3282ba5bb36f09267056011b00973f0a",
+      "host": "keybase.io",
+      "kid": "012009a15dfcc17f6e2122b683ea60a5864e3c54745eaaf5ca7e092e466c995619a90a",
+      "uid": "c12a5de0f74a02584a1c107d60c65119",
+      "username": "apparentlymart"
+    },
+    "merkle_root": {
+      "ctime": 1573324950,
+      "hash": "141a24336a9184d426550714d20131a960368e11b40ab1aa40a93a74b2937e83d71c708fe1b767c3726e208cc24f9e032e4f33bc70f5631c6bafa13982425920",
+      "hash_meta": "e6a3da944ade28f855773d075d0e07d87ffff822e92489c836be63240386ffc4",
+      "seqno": 9030145
+    },
+    "service": {
+      "entropy": "Y+IIu0dBJWya9Glcr8IndxVB",
+      "hostname": "apparently.me.uk",
+      "protocol": "https:"
+    },
+    "type": "web_service_binding",
+    "version": 2
+  },
+  "client": {
+    "name": "keybase.io go client",
+    "version": "4.7.2"
+  },
+  "ctime": 1573325001,
+  "expire_in": 504576000,
+  "prev": "6416e66ba746bd25ebe47da9f4df8ea4de8e71bc2781ceaa3e86a270cf6ff469",
+  "seqno": 72,
+  "tag": "signature"
+}
+
+which yields the signature:
+
+hKRib2R5hqhkZXRhY2hlZMOpaGFzaF90eXBlCqNrZXnEIwEgCaFd/MF/biEitoPqYKWGTjxUdF6q9cp+CS5GbJlWGakKp3BheWxvYWTESpcCSMQgZBbma6dGvSXr5H2p9N+OpN6Ocbwngc6qPoaicM9v9GnEIPWveAfY/pA0lPHTc9d2+KXVefkzOB9p2KQSMgRkEj53AgHCo3NpZ8RA+dWCxpHSZlCV6iCXh05h7WK4jhRDStBUUIxlP5QUP2EOKqxo2Tdev3UWmVsR3EfdQieoF0/5lRXnN5bubvwEBqhzaWdfdHlwZSCkaGFzaIKkdHlwZQildmFsdWXEIEzzRtH51XyYLx//NcOlhkYxgbXdZIyNhp5fGDwT/TPZo3RhZ80CAqd2ZXJzaW9uAQ==
+
+And finally, I am proving ownership of this host by posting or
+appending to this document.
+
+View my publicly-auditable identity here: https://keybase.io/apparentlymart
+
+==================================================================
